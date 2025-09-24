@@ -191,4 +191,50 @@ router.post("/upload-image", upload.single("image"), async (req, res) => {
   }
 });
 
+// Update product
+router.put("/:id", upload.single("image"), async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const productData = req.body;
+
+    // If image was uploaded, upload to Cloudinary
+    if (req.file) {
+      try {
+        const result = await uploadToCloudinary(req.file.buffer);
+        productData.image = result.secure_url;
+      } catch (uploadError) {
+        console.error('Cloudinary upload error:', uploadError);
+        return res.status(500).json({ message: "Image upload failed" });
+      }
+    }
+
+    // Parse variants and features if they're strings
+    if (productData.variants && typeof productData.variants === 'string') {
+      productData.variants = JSON.parse(productData.variants);
+    }
+    if (productData.features && typeof productData.features === 'string') {
+      productData.features = JSON.parse(productData.features);
+    }
+    if (productData.specifications && typeof productData.specifications === 'string') {
+      productData.specifications = JSON.parse(productData.specifications);
+    }
+
+    // Update the product
+    const updatedProduct = await Product.findByIdAndUpdate(
+      productId,
+      { ...productData, updatedAt: new Date() },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    res.json(updatedProduct);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 module.exports = router;
