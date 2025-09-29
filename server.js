@@ -3,9 +3,9 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 require('dotenv').config()
-const userRoutes = require("./routes/users");  // Import user routes
 const productRoutes = require("./routes/products");  // Import product routes
 const canvaSubscriptionRoutes = require("./routes/canvaSubscriptions");  // Import canva subscription routes
+const adminRoutes = require("./routes/admins");  // Import admin routes
 const { connectDB } = require("./src/db");
 
 const app = express();
@@ -16,10 +16,13 @@ app.use(express.json()); // For parsing application/json
 connectDB()
 
 // Use routes
-app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/canva-subscriptions", canvaSubscriptionRoutes);
+app.use("/api/admins", adminRoutes);
 
 // Start the server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Admin API available at: http://localhost:${PORT}/api/admins`);
+});
