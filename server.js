@@ -9,16 +9,7 @@ const adminRoutes = require("./routes/admins");  // Import admin routes
 const { connectDB } = require("./src/db");
 
 const app = express();
-// CORS configuration
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://ansaritools.com', 'https://www.ansaritools.com', 'https://ansari-tools-client.vercel.app'] // Production URLs
-    : ['http://localhost:3000', 'http://localhost:5173'], // Development URLs
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-
-app.use(cors(corsOptions)); // Enable CORS for cross-origin requests
+app.use(cors()); // Enable CORS for cross-origin requests
 app.use(express.json()); // For parsing application/json
 
 // Connect to MongoDB
