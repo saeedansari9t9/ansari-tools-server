@@ -2,18 +2,6 @@ const nodemailer = require('nodemailer');
 
 // Create transporter using Gmail SMTP
 const createTransporter = () => {
-  // Check if environment variables are set
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.error('❌ Email configuration missing:');
-    console.error('EMAIL_USER:', process.env.EMAIL_USER ? '✅ Set' : '❌ Missing');
-    console.error('EMAIL_PASS:', process.env.EMAIL_PASS ? '✅ Set' : '❌ Missing');
-    throw new Error('Email configuration is missing. Please set EMAIL_USER and EMAIL_PASS environment variables.');
-  }
-
-  console.log('📧 Email configuration found:');
-  console.log('EMAIL_USER:', process.env.EMAIL_USER);
-  console.log('EMAIL_PASS:', process.env.EMAIL_PASS ? '***hidden***' : 'Missing');
-
   return nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -26,11 +14,6 @@ const createTransporter = () => {
 // Send Canva subscription notification email
 const sendCanvaSubscriptionEmail = async (email, duration, subscriptionDate) => {
   try {
-    console.log('📧 Starting email send process...');
-    console.log('📧 Email:', email);
-    console.log('📧 Duration:', duration);
-    console.log('📧 Date:', subscriptionDate);
-    
     const transporter = createTransporter();
     
     // Calculate expiry date
