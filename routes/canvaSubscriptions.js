@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const CanvaSubscription = require('../models/CanvaSubscription');
+const { sendCanvaSubscriptionEmail } = require('../utils/emailService');
 
 // GET all canva subscriptions
 router.get('/', async (req, res) => {
@@ -75,7 +76,32 @@ router.post('/', async (req, res) => {
     });
 
     const savedSubscription = await subscription.save();
-    res.status(201).json(savedSubscription);
+    console.log('✅ Subscription saved:', savedSubscription.email, savedSubscription.duration);
+    
+    // Send email notification
+    console.log('📧 Attempting to send email to:', savedSubscription.email);
+    try {
+      const emailResult = await sendCanvaSubscriptionEmail(
+        savedSubscription.email,
+        savedSubscription.duration,
+        savedSubscription.date
+      );
+      
+      if (emailResult.success) {
+        console.log('✅ Email sent successfully to:', savedSubscription.email);
+        console.log('📧 Message ID:', emailResult.messageId);
+      } else {
+        console.error('❌ Failed to send email:', emailResult.error);
+      }
+    } catch (emailError) {
+      console.error('❌ Email sending error:', emailError);
+      // Don't fail the subscription creation if email fails
+    }
+    
+    res.status(201).json({
+      ...savedSubscription.toObject(),
+      emailSent: true
+    });
   } catch (error) {
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(err => err.message);
