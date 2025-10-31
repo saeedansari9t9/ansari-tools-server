@@ -43,6 +43,8 @@ const sendCanvaSubscriptionEmail = async (email, duration, subscriptionDate) => 
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta name="color-scheme" content="light dark">
+          <meta name="supported-color-schemes" content="light dark">
           <title>Thank You for Your Purchase - Ansari Tools</title>
           <style>
             * {
@@ -257,6 +259,30 @@ const sendCanvaSubscriptionEmail = async (email, duration, subscriptionDate) => 
               margin: 0 10px;
               font-size: 14px;
             }
+            a { color: #0B5ED7; }
+            
+            /* Dark mode support for clients like iOS Mail */
+            @media (prefers-color-scheme: dark) {
+              body { background: #0b0e11 !important; color: #e6e6e6 !important; }
+              .email-container { background: #121417 !important; box-shadow: none !important; }
+              .header { background: linear-gradient(135deg, #0b2e33 0%, #27474b 100%) !important; }
+              .thank-you h1 { color: #d9f2f4 !important; }
+              .thank-you p { color: #c7d1d1 !important; }
+              .subscription-card { background: #1a1d21 !important; border-color: #2a2f36 !important; }
+              .card-title { color: #d9f2f4 !important; }
+              .detail-item { border-color: #2a2f36 !important; }
+              .detail-label { color: #9ccbd0 !important; }
+              .detail-value { color: #e6f4f1 !important; }
+              .features { background: #162127 !important; border-left-color: #4F7C82 !important; }
+              .features li { color: #cbd5d6 !important; }
+              .warning-box { background: #2a2412 !important; border-color: #5a4f2a !important; color: #ffeaa7 !important; }
+              .footer { background: #0f1114 !important; border-top-color: #23262b !important; }
+              .footer p { color: #a7b0b1 !important; }
+              .social-links a { color: #8bd0da !important; }
+            }
+            /* Outlook/Windows dark mode fallback */
+            [data-ogsc] .email-container { background: #121417 !important; }
+            [data-ogsc] .detail-value { color: #e6f4f1 !important; }
             
             /* Mobile Responsive */
             @media (max-width: 600px) {
@@ -328,22 +354,22 @@ const sendCanvaSubscriptionEmail = async (email, duration, subscriptionDate) => 
                 <p>We're thrilled to have you as part of the Ansari Tools. Your Canva Pro subscription is now active and ready to use!</p>
               </div>
               
-              <div class="subscription-card">
+              <div class="subscription-card" style="background:#ffffff; border:1px solid #e0e0e0;">
                 <div class="card-title">
                   📋 Subscription Details
                 </div>
                 <div class="detail-grid">
                   <div class="detail-item">
                     <span class="detail-label">Email Address :&nbsp;</span>
-                    <span class="detail-value">${email}</span>
+                    <span class="detail-value" style="color:#0B2E33;">${email}</span>
                   </div>
                   <div class="detail-item">
                     <span class="detail-label">Duration :&nbsp;</span>
-                    <span class="detail-value">${duration}</span>
+                    <span class="detail-value" style="color:#0B2E33;">${duration}</span>
                   </div>
                   <div class="detail-item">
                     <span class="detail-label">Start Date :&nbsp;</span>
-                    <span class="detail-value">${new Date(subscriptionDate).toLocaleDateString('en-US', { 
+                    <span class="detail-value" style="color:#0B2E33;">${new Date(subscriptionDate).toLocaleDateString('en-US', { 
                       year: 'numeric', 
                       month: 'short', 
                       day: 'numeric' 
@@ -351,7 +377,7 @@ const sendCanvaSubscriptionEmail = async (email, duration, subscriptionDate) => 
                   </div>
                   <div class="detail-item">
                     <span class="detail-label">Expiry Date :&nbsp;</span>
-                    <span class="detail-value">${expiryDate.toLocaleDateString('en-US', { 
+                    <span class="detail-value" style="color:#0B2E33;">${expiryDate.toLocaleDateString('en-US', { 
                       year: 'numeric', 
                       month: 'short', 
                       day: 'numeric' 

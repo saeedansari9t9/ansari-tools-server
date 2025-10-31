@@ -54,7 +54,7 @@ router.get('/:id', async (req, res) => {
 // POST create new canva subscription
 router.post('/', async (req, res) => {
   try {
-    const { email, duration, date, status = 'active' } = req.body;
+    const { email, duration, date, status = 'active', sendEmail } = req.body;
 
     // Check if email already exists with active status
     const existingSubscription = await CanvaSubscription.findOne({ 
@@ -78,29 +78,33 @@ router.post('/', async (req, res) => {
     const savedSubscription = await subscription.save();
     console.log('✅ Subscription saved:', savedSubscription.email, savedSubscription.duration);
     
-    // Send email notification
-    console.log('📧 Attempting to send email to:', savedSubscription.email);
-    try {
-      const emailResult = await sendCanvaSubscriptionEmail(
-        savedSubscription.email,
-        savedSubscription.duration,
-        savedSubscription.date
-      );
-      
-      if (emailResult.success) {
-        console.log('✅ Email sent successfully to:', savedSubscription.email);
-        console.log('📧 Message ID:', emailResult.messageId);
-      } else {
-        console.error('❌ Failed to send email:', emailResult.error);
+    let emailSent = false;
+    // Send email notification only when not explicitly disabled
+    const shouldSend = sendEmail !== false; // default true
+    if (shouldSend) {
+      console.log('📧 Attempting to send email to:', savedSubscription.email);
+      try {
+        const emailResult = await sendCanvaSubscriptionEmail(
+          savedSubscription.email,
+          savedSubscription.duration,
+          savedSubscription.date
+        );
+        emailSent = !!emailResult.success;
+        if (emailResult.success) {
+          console.log('✅ Email sent successfully to:', savedSubscription.email);
+          console.log('📧 Message ID:', emailResult.messageId);
+        } else {
+          console.error('❌ Failed to send email:', emailResult.error);
+        }
+      } catch (emailError) {
+        console.error('❌ Email sending error:', emailError);
+        // Don't fail the subscription creation if email fails
       }
-    } catch (emailError) {
-      console.error('❌ Email sending error:', emailError);
-      // Don't fail the subscription creation if email fails
     }
     
     res.status(201).json({
       ...savedSubscription.toObject(),
-      emailSent: true
+      emailSent
     });
   } catch (error) {
     if (error.name === 'ValidationError') {
