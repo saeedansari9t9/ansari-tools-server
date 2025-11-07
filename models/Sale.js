@@ -1,25 +1,13 @@
 // models/Sale.js
 const mongoose = require("mongoose");
 
-const SaleItemSchema = new mongoose.Schema(
-  {
-    productName: { type: String, required: true, trim: true },
-    sellingPrice: { type: Number, required: true, min: 0 },
-    costPrice: { type: Number, required: true, min: 0 },
-    profit: { type: Number, required: false, default: 0 },
-  },
-  { _id: false }
-);
-
-const SaleSchema = new mongoose.Schema(
-  {
-    date: { type: Date, required: true },
-    items: { type: [SaleItemSchema], default: [] },
-    totalSalesAmount: { type: Number, required: true, default: 0 },
-    totalProfit: { type: Number, required: true, default: 0 },
-  },
-  { timestamps: true }
-);
+const SaleSchema = new mongoose.Schema({
+  date: { type: Date, required: true },
+  productName: { type: String, required: true },
+  sellingPrice: { type: Number, required: true },
+  costPrice: { type: Number, required: true },
+  profit: { type: Number, required: true }
+}, { timestamps: true });
 
 // Normalize and compute totals before save/update
 function computeTotals(doc) {

@@ -12,69 +12,94 @@ function getDayRange(dateStr) {
   return { start, end };
 }
 
-// Create or update sale for a specific date
-router.post("/", async (req, res) => {
+// Create a new sale (flat structure)
+router.post('/', async (req, res) => {
   try {
-    const { date, items = [] } = req.body;
-    if (!date) return res.status(400).json({ message: "date is required (YYYY-MM-DD)" });
-    if (!Array.isArray(items)) return res.status(400).json({ message: "items must be an array" });
-    const { start } = getDayRange(date);
+    const { date, productName, sellingPrice, costPrice } = req.body;
+    if (!date || !productName) {
+      return res.status(400).json({ message: "date and productName are required" });
+    }
 
-    // Always create a NEW sale document (no upsert/replace by date)
-    const sale = new Sale({ date: start, items });
-    await sale.save();
+    const d = new Date(date);
+    const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    const profit = Number(sellingPrice) - Number(costPrice);
+
+    const sale = await Sale.create({
+      date: start,
+      productName,
+      sellingPrice: Number(sellingPrice),
+      costPrice: Number(costPrice),
+      profit,
+    });
+
     res.status(201).json(sale);
   } catch (err) {
-    console.error("POST /api/sales error:", err);
-    const msg = err?.message || "Server error";
-    res.status(500).json({ message: msg });
+    console.error('POST /api/sales error:', err);
+    res.status(500).json({ message: err.message || 'Server error' });
   }
 });
 
-// Get today summary and items
-router.get("/today", async (req, res) => {
+
+
+router.get('/today', async (req, res) => {
   try {
     const { start, end } = getDayRange();
     const sales = await Sale.find({ date: { $gte: start, $lt: end } }).sort({ createdAt: 1 });
-    const combined = sales.reduce(
+
+    const summary = sales.reduce(
       (acc, s) => {
-        acc.totalSalesAmount += s.totalSalesAmount;
-        acc.totalProfit += s.totalProfit;
-        acc.totalOrders += s.items.length;
-        acc.items = acc.items.concat(s.items);
+        acc.totalSalesAmount += s.sellingPrice;
+        acc.totalProfit += s.profit;
+        acc.totalOrders += 1;
+        acc.items.push({
+          productName: s.productName,
+          sellingPrice: s.sellingPrice,
+          costPrice: s.costPrice,
+          profit: s.profit
+        });
         return acc;
       },
       { date: start, items: [], totalSalesAmount: 0, totalProfit: 0, totalOrders: 0 }
     );
-    return res.json(combined);
+
+    res.json(summary);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: err?.message || "Server error" });
+    res.status(500).json({ message: err.message || 'Server error' });
   }
 });
 
-// Get by date (YYYY-MM-DD)
-router.get("/by-date", async (req, res) => {
+
+router.get('/by-date', async (req, res) => {
   try {
     const { date } = req.query;
     const { start, end } = getDayRange(date);
+
     const sales = await Sale.find({ date: { $gte: start, $lt: end } }).sort({ createdAt: 1 });
-    if (!sales.length) return res.status(404).json({ message: "No sale found for date" });
-    const combined = sales.reduce(
+    if (!sales.length) return res.status(404).json({ message: 'No sale found for date' });
+
+    const summary = sales.reduce(
       (acc, s) => {
-        acc.totalSalesAmount += s.totalSalesAmount;
-        acc.totalProfit += s.totalProfit;
-        acc.items = acc.items.concat(s.items);
+        acc.totalSalesAmount += s.sellingPrice;
+        acc.totalProfit += s.profit;
+        acc.items.push({
+          productName: s.productName,
+          sellingPrice: s.sellingPrice,
+          costPrice: s.costPrice,
+          profit: s.profit
+        });
         return acc;
       },
       { date: start, items: [], totalSalesAmount: 0, totalProfit: 0 }
     );
-    res.json(combined);
+
+    res.json(summary);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: err?.message || "Server error" });
+    res.status(500).json({ message: err.message || 'Server error' });
   }
 });
+
 
 // List all sales (optional - for debugging/UI)
 router.get("/", async (_req, res) => {
@@ -104,29 +129,28 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// Monthly aggregation: year, month (1-12)
-router.get("/monthly", async (req, res) => {
+router.get('/monthly', async (req, res) => {
   try {
     const now = new Date();
     const year = Number(req.query.year || now.getUTCFullYear());
-    const monthReq = req.query.month ? Number(req.query.month) : now.getUTCMonth() + 1; // 1-12
-    const month = monthReq - 1; // 0-11
+    const monthReq = req.query.month ? Number(req.query.month) : now.getUTCMonth() + 1;
+    const month = monthReq - 1;
 
     const start = new Date(Date.UTC(year, month, 1));
     const end = new Date(Date.UTC(year, month + 1, 1));
 
     const sales = await Sale.find({ date: { $gte: start, $lt: end } }).sort({ date: 1, createdAt: 1 });
 
-    const totalMonthlySales = sales.reduce((s, d) => s + d.totalSalesAmount, 0);
-    const totalMonthlyProfit = sales.reduce((s, d) => s + d.totalProfit, 0);
+    const totalMonthlySales = sales.reduce((sum, s) => sum + s.sellingPrice, 0);
+    const totalMonthlyProfit = sales.reduce((sum, s) => sum + s.profit, 0);
 
-    // Aggregate day-wise (sum across multiple docs per day)
-    const dayMap = new Map(); // key = time number for day start, value = {totalSalesAmount, totalProfit}
+    // Aggregate by day
+    const dayMap = new Map();
     for (const s of sales) {
       const key = s.date.getTime();
       const cur = dayMap.get(key) || { totalSalesAmount: 0, totalProfit: 0 };
-      cur.totalSalesAmount += s.totalSalesAmount;
-      cur.totalProfit += s.totalProfit;
+      cur.totalSalesAmount += s.sellingPrice;
+      cur.totalProfit += s.profit;
       dayMap.set(key, cur);
     }
 
@@ -150,9 +174,10 @@ router.get("/monthly", async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: err.message || 'Server error' });
   }
 });
+
 
 module.exports = router;
 
