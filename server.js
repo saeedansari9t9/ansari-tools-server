@@ -8,6 +8,7 @@ const canvaSubscriptionRoutes = require("./routes/canvaSubscriptions");  // Impo
 const adminRoutes = require("./routes/admins");  // Import admin routes
 const { connectDB } = require("./src/db");
 const salesRoutes = require("./routes/sales");
+const expensesRoutes = require("./routes/expenses");
 
 const app = express();
 app.use(cors()); // Enable CORS for cross-origin requests
@@ -17,6 +18,7 @@ app.use(express.json()); // For parsing application/json
 connectDB()
 
 // Use routes
+app.use("/api/expenses", expensesRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/canva-subscriptions", canvaSubscriptionRoutes);
 app.use("/api/admins", adminRoutes);
