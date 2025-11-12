@@ -5,8 +5,8 @@ const router = express.Router();
 // ✅ Add new expense
 router.post("/", async (req, res) => {
   try {
-    const { title, amount, date, note } = req.body;
-    if (!title || !amount || !date) {
+    const { title, amount, date, note, category } = req.body;
+    if (!title || !amount || !date || !category) {
       return res.status(400).json({ message: "Title, amount and date are required" });
     }
     const expense = await Expense.create({
@@ -14,6 +14,7 @@ router.post("/", async (req, res) => {
       amount,
       date,
       note,
+      category,
     });
     res.status(201).json(expense);
   } catch (err) {
@@ -57,6 +58,64 @@ router.get("/monthly", async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+
+// ✅ Get daily grouped expenses (for month or all time)
+router.get("/grouped", async (req, res) => {
+  try {
+    const year = Number(req.query.year) || new Date().getFullYear();
+    const month = Number(req.query.month); // optional
+
+    const match = {
+      $expr: { $eq: [{ $year: "$date" }, year] },
+    };
+    if (month) {
+      match.$expr = {
+        $and: [
+          { $eq: [{ $year: "$date" }, year] },
+          { $eq: [{ $month: "$date" }, month] },
+        ],
+      };
+    }
+
+    const result = await Expense.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: {
+            day: { $dayOfMonth: "$date" },
+            month: { $month: "$date" },
+            year: { $year: "$date" },
+          },
+          totalAmount: { $sum: "$amount" },
+          expenses: { $push: "$$ROOT" },
+        },
+      },
+      { $sort: { "_id.year": -1, "_id.month": -1, "_id.day": -1 } },
+    ]);
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.get("/summary/monthly", async (req, res) => {
+  try {
+    const result = await Expense.aggregate([
+      {
+        $group: {
+          _id: { year: { $year: "$date" }, month: { $month: "$date" } },
+          total: { $sum: "$amount" },
+        },
+      },
+      { $sort: { "_id.year": -1, "_id.month": -1 } },
+    ]);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 
 // ✅ Delete expense
 router.delete("/:id", async (req, res) => {
