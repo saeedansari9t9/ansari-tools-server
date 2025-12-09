@@ -45,7 +45,7 @@ router.post('/login', async (req, res) => {
         isAdmin: true 
       },
       process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '24h' }
+      { expiresIn: '7d' } // Token expires in 7 days (1 week)
     );
 
     res.json({

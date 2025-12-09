@@ -52,6 +52,7 @@ router.get('/today', async (req, res) => {
         acc.totalProfit += s.profit;
         acc.totalOrders += 1;
         acc.items.push({
+          _id: s._id,
           productName: s.productName,
           sellingPrice: s.sellingPrice,
           costPrice: s.costPrice,
@@ -83,6 +84,7 @@ router.get('/by-date', async (req, res) => {
         acc.totalSalesAmount += s.sellingPrice;
         acc.totalProfit += s.profit;
         acc.items.push({
+          _id: s._id,
           productName: s.productName,
           sellingPrice: s.sellingPrice,
           costPrice: s.costPrice,
@@ -115,14 +117,37 @@ router.get("/", async (_req, res) => {
 // Update by id
 router.put("/:id", async (req, res) => {
   try {
-    const { items, date } = req.body;
-    const updated = await Sale.findOneAndUpdate(
-      { _id: req.params.id },
-      { items, date },
+    const { productName, sellingPrice, costPrice, date } = req.body;
+    const profit = Number(sellingPrice) - Number(costPrice);
+    
+    const d = date ? new Date(date) : new Date();
+    const normalizedDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    
+    const updated = await Sale.findByIdAndUpdate(
+      req.params.id,
+      { 
+        productName,
+        sellingPrice: Number(sellingPrice),
+        costPrice: Number(costPrice),
+        profit,
+        date: normalizedDate
+      },
       { new: true, runValidators: true }
     );
     if (!updated) return res.status(404).json({ message: "Sale not found" });
     res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Delete by id
+router.delete("/:id", async (req, res) => {
+  try {
+    const deleted = await Sale.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "Sale not found" });
+    res.json({ message: "Sale deleted successfully" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
