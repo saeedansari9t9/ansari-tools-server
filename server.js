@@ -10,6 +10,7 @@ const authRoutes = require("./routes/auth");  // Import auth routes
 const { connectDB } = require("./src/db");
 const salesRoutes = require("./routes/sales");
 const expensesRoutes = require("./routes/expenses");
+const adminTools = require("./routes/adminTools");
 
 const app = express();
 app.use(cors()); // Enable CORS for cross-origin requests
@@ -43,6 +44,8 @@ app.use("/api/canva-subscriptions", checkDBConnection, canvaSubscriptionRoutes);
 app.use("/api/admins", checkDBConnection, adminRoutes);
 app.use("/api/sales", checkDBConnection, salesRoutes);
 
+app.use("/api/user", require("./routes/userDashboard"));
+app.use("/api/admin", adminTools);
 // Connect to MongoDB before starting server
 async function startServer() {
   try {
