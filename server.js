@@ -6,6 +6,7 @@ require('dotenv').config()
 const productRoutes = require("./routes/products");  // Import product routes
 const canvaSubscriptionRoutes = require("./routes/canvaSubscriptions");  // Import canva subscription routes
 const adminRoutes = require("./routes/admins");  // Import admin routes
+const authRoutes = require("./routes/auth");  // Import auth routes
 const { connectDB } = require("./src/db");
 const salesRoutes = require("./routes/sales");
 const expensesRoutes = require("./routes/expenses");
@@ -35,6 +36,7 @@ const checkDBConnection = (req, res, next) => {
 };
 
 // Use routes with DB connection check
+app.use("/api/auth", checkDBConnection, authRoutes);  // Auth routes (signup/login)
 app.use("/api/expenses", checkDBConnection, expensesRoutes);
 app.use("/api/products", checkDBConnection, productRoutes);
 app.use("/api/canva-subscriptions", checkDBConnection, canvaSubscriptionRoutes);
