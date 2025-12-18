@@ -296,4 +296,19 @@ router.post("/:id/change-password", adminAuth, async (req, res) => {
   }
 });
 
+/* ===========================
+   🔓 ADMIN LOGOUT ROUTE
+=========================== */
+router.post("/logout", (req, res) => {
+  res.clearCookie("admin_token", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    domain: ".ansaritools.com",
+    path: "/",
+  });
+
+  return res.json({ message: "Logged out successfully" });
+});
+
 module.exports = router;
