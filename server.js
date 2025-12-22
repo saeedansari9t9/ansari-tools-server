@@ -29,6 +29,7 @@ app.use(
       "https://ansaritools.com",
       "https://www.ansaritools.com",
       "https://dash.ansaritools.com",
+      "https://api.ansaritools.com",
       "http://localhost:3000",
       "http://localhost:5173"
     ],
@@ -64,6 +65,7 @@ app.use("/api/sales", checkDBConnection, salesRoutes);
 
 app.use("/api/user", checkDBConnection, require("./routes/userDashboard"));
 app.use("/api/admin", checkDBConnection, adminTools);
+app.use("/api", require("./routes/logout"));
 
 // ==========================
 // START SERVER
