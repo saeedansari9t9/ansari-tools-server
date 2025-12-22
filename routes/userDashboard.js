@@ -1,6 +1,9 @@
 const router = require("express").Router();
 const userAuth = require("../middleware/userAuth");
 const UserTool = require("../models/UserTool");
+const Admin = require("../models/Admin"); // optional, not needed
+const User = require("../models/User");   // ✅ your users collection model
+const adminAuth = require("../middleware/adminAuth"); // ✅ already exists
 
 // 🔹 current user info
 router.get("/me", userAuth, async (req, res) => {
@@ -32,5 +35,18 @@ router.get("/my-tools", userAuth, async (req, res) => {
     res.json({ tools });
   });
   
+// 🔹 ADMIN: get all users
+router.get("/", adminAuth, async (req, res) => {
+  try {
+    const users = await User.find()
+      .select("-password") // agar password field hai
+      .sort({ createdAt: -1 });
+
+    return res.json({ users });
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to load users", error: err.message });
+  }
+});
+
 
 module.exports = router;
