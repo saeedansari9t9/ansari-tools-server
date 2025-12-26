@@ -23,10 +23,10 @@ app.use(express.json());
 app.use(cookieParser());
 
 // ✅ CORS (ONLY ONCE & BEFORE ROUTES)
-app.use(cors({
-  origin: true,           // ← YEHI LINE DAAL DO
-  credentials: true
-}));
+// app.use(cors({
+//   origin: true,           // ← YEHI LINE DAAL DO
+//   credentials: true
+// }));
 
 // ==========================
 // DB connection checker
