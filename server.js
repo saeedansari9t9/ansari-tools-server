@@ -23,19 +23,10 @@ app.use(express.json());
 app.use(cookieParser());
 
 // ✅ CORS (ONLY ONCE & BEFORE ROUTES)
-app.use(
-  cors({
-    origin: [
-      "https://ansaritools.com",
-      "https://www.ansaritools.com",
-      "https://dash.ansaritools.com",
-      "https://api.ansaritools.com",
-      "http://localhost:3000",
-      "http://localhost:5173"
-    ],
-    credentials: true,
-  })
-);
+app.use(cors({
+  origin: true,           // ← YEHI LINE DAAL DO
+  credentials: true
+}));
 
 // ==========================
 // DB connection checker
