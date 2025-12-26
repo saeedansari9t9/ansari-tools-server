@@ -63,6 +63,7 @@ app.use("/api/canva-subscriptions", checkDBConnection, canvaSubscriptionRoutes);
 app.use("/api/admins", checkDBConnection, adminRoutes);
 app.use("/api/sales", checkDBConnection, salesRoutes);
 
+app.use("/api", require("./routes/tools")); // Yeh line add kar do
 app.use("/api/user", checkDBConnection, require("./routes/userDashboard"));
 app.use("/api/admin", checkDBConnection, adminTools);
 app.use("/api", require("./routes/logout"));

@@ -138,4 +138,61 @@ router.delete("/unassign-tool", adminAuth, async (req, res) => {
   }
 });
 
+// ✅ GET users with their assigned tools (for Admin UI table)
+router.get("/users-with-tools", adminAuth, async (req, res) => {
+  try {
+    const users = await User.find({})
+      .select("_id username name role createdAt")
+      .sort({ createdAt: -1 });
+
+    const now = new Date();
+
+    const rows = await UserTool.find({})
+      .populate("tool", "name slug image accessUrl")
+      .populate("user", "username name")
+      .sort({ createdAt: -1 });
+
+    // group by userId
+    const map = new Map();
+    rows.forEach((r) => {
+      const uid = String(r.user?._id || r.user);
+      if (!uid) return;
+      if (!map.has(uid)) map.set(uid, []);
+      map.get(uid).push({
+        id: r._id,
+        status: r.status,
+        expiresAt: r.expiresAt,
+        isExpired: r.expiresAt ? new Date(r.expiresAt) <= now : false,
+        tool: r.tool,
+      });
+    });
+
+    const result = users.map((u) => {
+      const assigned = map.get(String(u._id)) || [];
+      const activeCount = assigned.filter(
+        (a) => a.status === "active" && !a.isExpired
+      ).length;
+
+      return {
+        _id: u._id,
+        username: u.username,
+        name: u.name,
+        role: u.role,
+        tools: assigned,
+        summary: {
+          total: assigned.length,
+          active: activeCount,
+          none: assigned.length === 0,
+        },
+      };
+    });
+
+    return res.json({ users: result });
+  } catch (err) {
+    console.error("GET /admin/users-with-tools error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+
 module.exports = router;
