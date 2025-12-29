@@ -37,14 +37,29 @@ app.use(
   })
 );
 
-// 🔥 NEW: Manual OPTIONS handler for Vercel preflight fix
-app.options('*', (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.status(200).end();
+app.options(/.*/, (req, res) => {
+  const origin = req.headers.origin;
+
+  const allowed = new Set([
+    "https://ansaritools.com",
+    "https://www.ansaritools.com",
+    "https://dash.ansaritools.com",
+    "http://localhost:3000",
+    "http://localhost:5173",
+  ]);
+
+  if (allowed.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  }
+
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  return res.sendStatus(204);
 });
+
 
 // ==========================
 // DB connection checker
