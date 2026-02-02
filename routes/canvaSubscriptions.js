@@ -57,14 +57,14 @@ router.post('/', async (req, res) => {
     const { email, duration, date, status = 'active', sendEmail } = req.body;
 
     // Check if email already exists with active status
-    const existingSubscription = await CanvaSubscription.findOne({ 
-      email: email.toLowerCase(), 
-      status: 'active' 
+    const existingSubscription = await CanvaSubscription.findOne({
+      email: email.toLowerCase(),
+      status: 'active'
     });
 
     if (existingSubscription) {
-      return res.status(400).json({ 
-        message: 'An active subscription already exists for this email' 
+      return res.status(400).json({
+        message: 'An active subscription already exists for this email'
       });
     }
 
@@ -77,7 +77,7 @@ router.post('/', async (req, res) => {
 
     const savedSubscription = await subscription.save();
     console.log('✅ Subscription saved:', savedSubscription.email, savedSubscription.duration);
-    
+
     let emailSent = false;
     // Send email notification only when not explicitly disabled
     const shouldSend = sendEmail !== false; // default true
@@ -101,7 +101,7 @@ router.post('/', async (req, res) => {
         // Don't fail the subscription creation if email fails
       }
     }
-    
+
     res.status(201).json({
       ...savedSubscription.toObject(),
       emailSent
@@ -119,7 +119,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { email, duration, date, status } = req.body;
-    
+
     const subscription = await CanvaSubscription.findById(req.params.id);
     if (!subscription) {
       return res.status(404).json({ message: 'Canva subscription not found' });
@@ -127,15 +127,15 @@ router.put('/:id', async (req, res) => {
 
     // Check if email already exists with active status (excluding current subscription)
     if (email && email !== subscription.email) {
-      const existingSubscription = await CanvaSubscription.findOne({ 
-        email: email.toLowerCase(), 
+      const existingSubscription = await CanvaSubscription.findOne({
+        email: email.toLowerCase(),
         status: 'active',
         _id: { $ne: req.params.id }
       });
 
       if (existingSubscription) {
-        return res.status(400).json({ 
-          message: 'An active subscription already exists for this email' 
+        return res.status(400).json({
+          message: 'An active subscription already exists for this email'
         });
       }
     }
@@ -182,7 +182,9 @@ router.get('/stats/overview', async (req, res) => {
     const active = await CanvaSubscription.countDocuments({ status: 'active' });
     const inactive = await CanvaSubscription.countDocuments({ status: 'inactive' });
     const expired = await CanvaSubscription.countDocuments({ status: 'expired' });
-    
+
+    const oneMonth = await CanvaSubscription.countDocuments({ duration: '1 Month' });
+    const threeMonths = await CanvaSubscription.countDocuments({ duration: '3 Months' });
     const sixMonths = await CanvaSubscription.countDocuments({ duration: '6 Months' });
     const oneYear = await CanvaSubscription.countDocuments({ duration: '1 Year' });
 
@@ -191,6 +193,8 @@ router.get('/stats/overview', async (req, res) => {
       active,
       inactive,
       expired,
+      oneMonth,
+      threeMonths,
       sixMonths,
       oneYear
     });
