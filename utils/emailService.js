@@ -15,10 +15,14 @@ const createTransporter = () => {
 const sendCanvaSubscriptionEmail = async (email, duration, subscriptionDate) => {
   try {
     const transporter = createTransporter();
-    
+
     // Calculate expiry date
     const expiryDate = new Date(subscriptionDate);
-    if (duration === '6 Months') {
+    if (duration === '1 Month') {
+      expiryDate.setMonth(expiryDate.getMonth() + 1);
+    } else if (duration === '3 Months') {
+      expiryDate.setMonth(expiryDate.getMonth() + 3);
+    } else if (duration === '6 Months') {
       expiryDate.setMonth(expiryDate.getMonth() + 6);
     } else if (duration === '1 Year') {
       expiryDate.setFullYear(expiryDate.getFullYear() + 1);
@@ -369,19 +373,19 @@ const sendCanvaSubscriptionEmail = async (email, duration, subscriptionDate) => 
                   </div>
                   <div class="detail-item">
                     <span class="detail-label">Start Date :&nbsp;</span>
-                    <span class="detail-value" style="color:#0B2E33;">${new Date(subscriptionDate).toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'short', 
-                      day: 'numeric' 
-                    })}</span>
+                    <span class="detail-value" style="color:#0B2E33;">${new Date(subscriptionDate).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })}</span>
                   </div>
                   <div class="detail-item">
                     <span class="detail-label">Expiry Date :&nbsp;</span>
-                    <span class="detail-value" style="color:#0B2E33;">${expiryDate.toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'short', 
-                      day: 'numeric' 
-                    })}</span>
+                    <span class="detail-value" style="color:#0B2E33;">${expiryDate.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })}</span>
                   </div>
                   <div class="detail-item">
                     <span class="detail-label">Status :&nbsp;</span>
@@ -434,7 +438,7 @@ const sendCanvaSubscriptionEmail = async (email, duration, subscriptionDate) => 
     const result = await transporter.sendMail(mailOptions);
     console.log('Email sent successfully:', result.messageId);
     return { success: true, messageId: result.messageId };
-    
+
   } catch (error) {
     console.error('Error sending email:', error);
     return { success: false, error: error.message };
@@ -445,7 +449,7 @@ const sendCanvaSubscriptionEmail = async (email, duration, subscriptionDate) => 
 const sendNotificationEmail = async (email, subject, message) => {
   try {
     const transporter = createTransporter();
-    
+
     const mailOptions = {
       from: {
         name: 'Ansari Tools',
@@ -524,7 +528,7 @@ const sendNotificationEmail = async (email, subject, message) => {
     const result = await transporter.sendMail(mailOptions);
     console.log('Email sent successfully:', result.messageId);
     return { success: true, messageId: result.messageId };
-    
+
   } catch (error) {
     console.error('Error sending email:', error);
     return { success: false, error: error.message };
