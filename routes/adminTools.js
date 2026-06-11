@@ -7,11 +7,13 @@ const UserTool = require("../models/UserTool");
 
 const adminAuth = require("../middleware/adminAuth");
 
-// ✅ GET active tools for dropdown (Admin UI)
+// ✅ GET tools (Admin UI)
 router.get("/tools", adminAuth, async (req, res) => {
   try {
-    const tools = await Tool.find({ active: true })
-      .select("name slug image accessUrl active")
+    // If specific query, return only active tools, otherwise return all
+    const filter = req.query.activeOnly === "true" ? { active: true } : {};
+    const tools = await Tool.find(filter)
+      .select("name slug image accessUrl active description cookies")
       .sort({ name: 1 });
 
     return res.json({ tools });
@@ -194,5 +196,68 @@ router.get("/users-with-tools", adminAuth, async (req, res) => {
   }
 });
 
+// ✅ CREATE tool
+router.post("/tools", adminAuth, async (req, res) => {
+  try {
+    const { name, description, slug, image, accessUrl, cookies, active } = req.body;
+    if (!name) return res.status(400).json({ message: "Tool name is required" });
+
+    const toolSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+    const tool = new Tool({
+      name,
+      description: description || "",
+      slug: toolSlug,
+      image: image || "",
+      accessUrl: accessUrl || "",
+      cookies: cookies || "",
+      active: active !== undefined ? active : true,
+    });
+
+    await tool.save();
+    return res.status(201).json({ message: "Tool created successfully", tool });
+  } catch (err) {
+    console.error("POST /admin/tools error:", err);
+    if (err.code === 11000) {
+      return res.status(400).json({ message: "Tool with this slug or name already exists" });
+    }
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ✅ UPDATE tool
+router.put("/tools/:id", adminAuth, async (req, res) => {
+  try {
+    const { name, description, slug, image, accessUrl, cookies, active } = req.body;
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (slug !== undefined) updateData.slug = slug;
+    if (image !== undefined) updateData.image = image;
+    if (accessUrl !== undefined) updateData.accessUrl = accessUrl;
+    if (cookies !== undefined) updateData.cookies = cookies;
+    if (active !== undefined) updateData.active = active;
+
+    const tool = await Tool.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
+    if (!tool) return res.status(404).json({ message: "Tool not found" });
+
+    return res.json({ message: "Tool updated successfully", tool });
+  } catch (err) {
+    console.error("PUT /admin/tools/:id error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ✅ DELETE tool
+router.delete("/tools/:id", adminAuth, async (req, res) => {
+  try {
+    const tool = await Tool.findByIdAndDelete(req.params.id);
+    if (!tool) return res.status(404).json({ message: "Tool not found" });
+    return res.json({ message: "Tool deleted successfully" });
+  } catch (err) {
+    console.error("DELETE /admin/tools/:id error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
 
 module.exports = router;
