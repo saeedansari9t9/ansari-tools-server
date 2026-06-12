@@ -6,6 +6,7 @@ const Tool = require("../models/Tool");
 const UserTool = require("../models/UserTool");
 
 const adminAuth = require("../middleware/adminAuth");
+const Tutorial = require("../models/Tutorial");
 
 // ✅ GET tools (Admin UI)
 router.get("/tools", adminAuth, async (req, res) => {
@@ -258,6 +259,63 @@ router.delete("/tools/:id", adminAuth, async (req, res) => {
     console.error("DELETE /admin/tools/:id error:", err);
     return res.status(500).json({ message: "Server error" });
   }
+});
+
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, "../uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Multer storage engine configuration
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `extension-${Date.now()}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage: storage,
+});
+
+// ✅ POST upload extension file
+router.post("/upload-extension", adminAuth, (req, res) => {
+  upload.single("extensionFile")(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ message: err.message });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: "Please select a file to upload" });
+    }
+
+    try {
+      // Find the tutorial configuration (singleton)
+      let tutorial = await Tutorial.findOne();
+      if (!tutorial) {
+        tutorial = new Tutorial();
+      }
+
+      const fileUrl = `/uploads/${req.file.filename}`;
+      tutorial.extensionFileUrl = fileUrl;
+      await tutorial.save();
+
+      return res.json({
+        message: "Extension file uploaded successfully!",
+        fileUrl,
+      });
+    } catch (dbErr) {
+      console.error("Database update error:", dbErr);
+      return res.status(500).json({ message: "File uploaded but failed to update database." });
+    }
+  });
 });
 
 module.exports = router;

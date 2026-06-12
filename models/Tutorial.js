@@ -16,6 +16,10 @@ const tutorialSchema = new mongoose.Schema({
   tip: {
     type: String,
     default: "If you still face any issue after watching the tutorial, contact our support team and we'll help you."
+  },
+  extensionFileUrl: {
+    type: String,
+    default: ""
   }
 }, {
   timestamps: true

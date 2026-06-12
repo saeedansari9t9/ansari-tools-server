@@ -8,10 +8,20 @@ const Tutorial = require("../models/Tutorial");
 
 // 🔹 current user info
 router.get("/me", userAuth, async (req, res) => {
-  res.json({
-    userId: req.user.userId,
-    username: req.user.username
-  });
+  try {
+    const user = await User.findById(req.user.userId).select("name username role");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json({
+      userId: user._id,
+      name: user.name,
+      username: user.username,
+      role: user.role
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
 });
 
 // 🔹 user's active tools
@@ -195,6 +205,37 @@ router.put("/tutorial", adminAuth, async (req, res) => {
   } catch (err) {
     console.error("PUT /user/tutorial error:", err);
     return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// 🔹 change logged-in user's own password
+router.post("/change-password", userAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "Current password and new password are required" });
+    }
+
+    // Find the user, including the password field
+    const user = await User.findById(req.user.userId).select("+password");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Verify current password
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Incorrect current password" });
+    }
+
+    // Update to new password
+    user.password = newPassword; // the pre-save hook will hash this automatically!
+    await user.save();
+
+    return res.json({ message: "Password changed successfully" });
+  } catch (err) {
+    console.error("Change password error:", err);
+    return res.status(500).json({ message: "Failed to change password", error: err.message });
   }
 });
 
