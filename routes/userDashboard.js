@@ -4,6 +4,7 @@ const UserTool = require("../models/UserTool");
 const Admin = require("../models/Admin"); // optional, not needed
 const User = require("../models/User");   // ✅ your users collection model
 const adminAuth = require("../middleware/adminAuth"); // ✅ already exists
+const Tutorial = require("../models/Tutorial");
 
 // 🔹 current user info
 router.get("/me", userAuth, async (req, res) => {
@@ -15,26 +16,26 @@ router.get("/me", userAuth, async (req, res) => {
 
 // 🔹 user's active tools
 router.get("/my-tools", userAuth, async (req, res) => {
-    const now = new Date();
-  
-    const rows = await UserTool.find({
-      user: req.user.userId,
-      status: "active",
-      expiresAt: { $gt: now },
-    }).populate("tool");
-  
-    const tools = rows.map((r) => ({
-      id: r._id,
-      name: r.tool.name,
-      slug: r.tool.slug,
-      image: r.tool.image,
-      accessUrl: r.tool.accessUrl,
-      expiresAt: r.expiresAt,
-    }));
-  
-    res.json({ tools });
-  });
-  
+  const now = new Date();
+
+  const rows = await UserTool.find({
+    user: req.user.userId,
+    status: "active",
+    expiresAt: { $gt: now },
+  }).populate("tool");
+
+  const tools = rows.map((r) => ({
+    id: r._id,
+    name: r.tool.name,
+    slug: r.tool.slug,
+    image: r.tool.image,
+    accessUrl: r.tool.accessUrl,
+    expiresAt: r.expiresAt,
+  }));
+
+  res.json({ tools });
+});
+
 // 🔹 ADMIN: get all users
 router.get("/", adminAuth, async (req, res) => {
   try {
@@ -45,6 +46,76 @@ router.get("/", adminAuth, async (req, res) => {
     return res.json({ users });
   } catch (err) {
     return res.status(500).json({ message: "Failed to load users", error: err.message });
+  }
+});
+
+// 🔹 ADMIN: create new user
+router.post("/", adminAuth, async (req, res) => {
+  try {
+    const { name, username, password, role = "user" } = req.body;
+
+    if (!name || !username || !password) {
+      return res.status(400).json({ message: "Name, username and password required" });
+    }
+
+    const existingUser = await User.findOne({ username: username.toLowerCase().trim() });
+    if (existingUser) {
+      return res.status(409).json({ message: "Username already exists" });
+    }
+
+    const newUser = new User({
+      name: name.trim(),
+      username: username.toLowerCase().trim(),
+      password,
+      role: 'user'
+    });
+
+    const savedUser = await newUser.save();
+    return res.status(201).json({ message: "User created successfully", user: savedUser });
+  } catch (err) {
+    console.error("Create user error:", err);
+    if (err.name === 'ValidationError') {
+      const errors = Object.values(err.errors).map(e => e.message);
+      return res.status(400).json({ message: "Validation error", errors });
+    }
+    return res.status(500).json({ message: "Failed to create user", error: err.message });
+  }
+});
+
+// 🔹 ADMIN: delete user
+router.delete("/:id", adminAuth, async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    return res.json({ message: "User deleted successfully" });
+  } catch (err) {
+    console.error("Delete user error:", err);
+    return res.status(500).json({ message: "Failed to delete user", error: err.message });
+  }
+});
+
+// 🔹 ADMIN: reset user password
+router.post("/:id/reset-password", adminAuth, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ message: "New password required" });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.password = password; // pre-save hook will hash this automatically!
+    await user.save();
+
+    return res.json({ message: "Password reset successfully" });
+  } catch (err) {
+    console.error("Reset password error:", err);
+    return res.status(500).json({ message: "Failed to reset password", error: err.message });
   }
 });
 
@@ -86,6 +157,43 @@ router.get("/tools/:slug/cookies", userAuth, async (req, res) => {
     return res.json({ cookies: parsedCookies });
   } catch (err) {
     console.error("GET /user/tools/:slug/cookies error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// 🔹 GET tutorial content (Common: admin and user)
+router.get("/tutorial", async (req, res) => {
+  try {
+    let tutorial = await Tutorial.findOne();
+    if (!tutorial) {
+      // Create default tutorial record if none exists
+      tutorial = new Tutorial();
+      await tutorial.save();
+    }
+    return res.json({ tutorial });
+  } catch (err) {
+    console.error("GET /user/tutorial error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// 🔹 UPDATE tutorial content (Admin only)
+router.put("/tutorial", adminAuth, async (req, res) => {
+  try {
+    const { title, description, youtubeUrl, tip } = req.body;
+    let tutorial = await Tutorial.findOne();
+    if (!tutorial) {
+      tutorial = new Tutorial();
+    }
+    if (title !== undefined) tutorial.title = title;
+    if (description !== undefined) tutorial.description = description;
+    if (youtubeUrl !== undefined) tutorial.youtubeUrl = youtubeUrl;
+    if (tip !== undefined) tutorial.tip = tip;
+
+    await tutorial.save();
+    return res.json({ message: "Tutorial updated successfully", tutorial });
+  } catch (err) {
+    console.error("PUT /user/tutorial error:", err);
     return res.status(500).json({ message: "Server error" });
   }
 });

@@ -41,7 +41,8 @@ router.post('/signup', async (req, res) => {
       {
         userId: savedUser._id,
         username: savedUser.username,
-        role: savedUser.role
+        role: savedUser.role,
+        tokenVersion: savedUser.tokenVersion || 0
       },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
@@ -107,7 +108,8 @@ router.post('/login', async (req, res) => {
       {
         userId: user._id,
         username: user.username,
-        role: user.role
+        role: user.role,
+        tokenVersion: user.tokenVersion || 0
       },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }

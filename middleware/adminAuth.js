@@ -81,8 +81,11 @@ const adminAuth = async (req, res, next) => {
       const decoded = jwt.verify(headerToken, process.env.JWT_SECRET);
 
       // 🔒 IMPORTANT: role DB se verify
-      const user = await User.findById(decoded.userId).select("role username");
+      const user = await User.findById(decoded.userId).select("role username tokenVersion");
       if (user && user.role === "admin") {
+        if (decoded.tokenVersion === undefined || decoded.tokenVersion !== (user.tokenVersion || 0)) {
+          return res.status(401).json({ message: "Session expired, please log in again" });
+        }
         req.admin = {
           _id: user._id,
           username: user.username,
