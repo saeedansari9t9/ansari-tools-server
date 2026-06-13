@@ -129,6 +129,28 @@ router.post("/:id/reset-password", adminAuth, async (req, res) => {
   }
 });
 
+// 🔹 ADMIN: get user login logs (optionally filtered by userId)
+router.get("/logs", adminAuth, async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const filter = {};
+    if (userId) {
+      filter.user = userId;
+    }
+
+    const UserLog = require("../models/UserLog");
+    const logs = await UserLog.find(filter)
+      .populate("user", "name username role")
+      .sort({ createdAt: -1 })
+      .limit(1000); // Safety limit
+
+    return res.json({ logs });
+  } catch (err) {
+    console.error("GET /user/logs error:", err);
+    return res.status(500).json({ message: "Failed to load login logs", error: err.message });
+  }
+});
+
 // 🔹 GET active tool cookies for subscribed user
 router.get("/tools/:slug/cookies", userAuth, async (req, res) => {
   try {
@@ -236,6 +258,62 @@ router.post("/change-password", userAuth, async (req, res) => {
   } catch (err) {
     console.error("Change password error:", err);
     return res.status(500).json({ message: "Failed to change password", error: err.message });
+  }
+});
+
+// 🔹 update logged-in user's own profile (name, username)
+router.put("/update-profile", userAuth, async (req, res) => {
+  try {
+    const { name, username } = req.body;
+    if (!name || !username) {
+      return res.status(400).json({ message: "Name and username are required" });
+    }
+
+    // Find user
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Check if new username is already taken by another user
+    const normUsername = username.toLowerCase().trim();
+    if (normUsername !== user.username) {
+      const existingUser = await User.findOne({ username: normUsername });
+      if (existingUser) {
+        return res.status(409).json({ message: "Username already exists" });
+      }
+      user.username = normUsername;
+    }
+
+    user.name = name.trim();
+    await user.save();
+
+    // Generate fresh JWT token
+    const jwt = require("jsonwebtoken");
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        username: user.username,
+        role: user.role,
+        tokenVersion: user.tokenVersion || 0
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    return res.json({
+      message: "Profile updated successfully",
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        username: user.username,
+        role: user.role
+      }
+    });
+  } catch (err) {
+    console.error("Update profile error:", err);
+    return res.status(500).json({ message: "Failed to update profile", error: err.message });
   }
 });
 

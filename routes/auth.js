@@ -115,6 +115,22 @@ router.post('/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    // Save Login log
+    try {
+      const UserLog = require('../models/UserLog');
+      const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim() || req.ip || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
+      
+      const log = new UserLog({
+        user: user._id,
+        ip,
+        userAgent
+      });
+      await log.save();
+    } catch (logErr) {
+      console.error('Failed to save login log:', logErr);
+    }
+
     return res.json({
       message: 'Login successful',
       token,
