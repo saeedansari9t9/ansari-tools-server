@@ -262,60 +262,67 @@ router.delete("/tools/:id", adminAuth, async (req, res) => {
 });
 
 const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
+const cloudinary = require("cloudinary").v2;
 
-// Ensure uploads directory exists
-const uploadDir = path.join(__dirname, "../uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Multer storage engine configuration
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `extension-${Date.now()}${ext}`);
-  },
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25MB limit for extension files
+  },
 });
 
+// Helper to upload raw file to Cloudinary
+const uploadRawToCloudinary = (buffer, filename) => {
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.upload_stream(
+      {
+        folder: "ansari-tools/extensions",
+        resource_type: "raw",
+        public_id: `extension-${Date.now()}-${filename.replace(/\.[^/.]+$/, "")}`
+      },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    ).end(buffer);
+  });
+};
+
 // ✅ POST upload extension file
-router.post("/upload-extension", adminAuth, (req, res) => {
-  upload.single("extensionFile")(req, res, async (err) => {
-    if (err) {
-      return res.status(400).json({ message: err.message });
-    }
+router.post("/upload-extension", adminAuth, upload.single("extensionFile"), async (req, res) => {
+  try {
     if (!req.file) {
       return res.status(400).json({ message: "Please select a file to upload" });
     }
 
-    try {
-      // Find the tutorial configuration (singleton)
-      let tutorial = await Tutorial.findOne();
-      if (!tutorial) {
-        tutorial = new Tutorial();
-      }
+    // Upload memory buffer to Cloudinary
+    const result = await uploadRawToCloudinary(req.file.buffer, req.file.originalname);
+    const fileUrl = result.secure_url;
 
-      const fileUrl = `/uploads/${req.file.filename}`;
-      tutorial.extensionFileUrl = fileUrl;
-      await tutorial.save();
-
-      return res.json({
-        message: "Extension file uploaded successfully!",
-        fileUrl,
-      });
-    } catch (dbErr) {
-      console.error("Database update error:", dbErr);
-      return res.status(500).json({ message: "File uploaded but failed to update database." });
+    // Find the tutorial configuration (singleton)
+    let tutorial = await Tutorial.findOne();
+    if (!tutorial) {
+      tutorial = new Tutorial();
     }
-  });
+
+    tutorial.extensionFileUrl = fileUrl;
+    await tutorial.save();
+
+    return res.json({
+      message: "Extension file uploaded successfully!",
+      fileUrl,
+    });
+  } catch (err) {
+    console.error("Upload error:", err);
+    return res.status(500).json({ message: "Failed to upload file to storage.", error: err.message });
+  }
 });
 
 module.exports = router;
