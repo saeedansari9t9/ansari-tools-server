@@ -46,11 +46,11 @@ router.get("/my-tools", userAuth, async (req, res) => {
   res.json({ tools });
 });
 
-// 🔹 ADMIN: get all users
+// 🔹 ADMIN: get all users (with lock status)
 router.get("/", adminAuth, async (req, res) => {
   try {
     const users = await User.find()
-      .select("-password") // agar password field hai
+      .select("-password")
       .sort({ createdAt: -1 });
 
     return res.json({ users });
@@ -59,23 +59,67 @@ router.get("/", adminAuth, async (req, res) => {
   }
 });
 
+// 🔹 ADMIN: unlock a user account (clears lock + clears sessionToken so they can login fresh)
+router.post("/:id/unlock", adminAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.isLocked = false;
+    user.lockReason = null;
+    user.sessionToken = null; // Allow fresh login
+    await user.save();
+
+    return res.json({ message: `Account for @${user.username} has been unlocked successfully.` });
+  } catch (err) {
+    console.error("Unlock user error:", err);
+    return res.status(500).json({ message: "Failed to unlock user", error: err.message });
+  }
+});
+
+// 🔹 ADMIN: manually lock a user account
+router.post("/:id/lock", adminAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.isLocked = true;
+    user.lockReason = req.body.reason || "Manually locked by administrator.";
+    user.sessionToken = null;
+    await user.save();
+
+    return res.json({ message: `Account for @${user.username} has been locked.` });
+  } catch (err) {
+    console.error("Lock user error:", err);
+    return res.status(500).json({ message: "Failed to lock user", error: err.message });
+  }
+});
+
+
 // 🔹 ADMIN: create new user
 router.post("/", adminAuth, async (req, res) => {
   try {
-    const { name, username, password, role = "user" } = req.body;
+    let { name, username, password, role = "user" } = req.body;
 
-    if (!name || !username || !password) {
-      return res.status(400).json({ message: "Name, username and password required" });
+    if (!username || !password) {
+      return res.status(400).json({ message: "Username and password required" });
     }
 
-    const existingUser = await User.findOne({ username: username.toLowerCase().trim() });
+    const cleanUsername = username.toLowerCase().trim();
+    const cleanName = (name && name.trim()) ? name.trim() : cleanUsername;
+
+    const existingUser = await User.findOne({ username: cleanUsername });
     if (existingUser) {
       return res.status(409).json({ message: "Username already exists" });
     }
 
     const newUser = new User({
-      name: name.trim(),
-      username: username.toLowerCase().trim(),
+      name: cleanName,
+      username: cleanUsername,
       password,
       role: 'user'
     });
@@ -212,7 +256,7 @@ router.get("/tutorial", async (req, res) => {
 // 🔹 UPDATE tutorial content (Admin only)
 router.put("/tutorial", adminAuth, async (req, res) => {
   try {
-    const { title, description, youtubeUrl, tip } = req.body;
+    const { title, description, youtubeUrl, tip, extensionFileUrl } = req.body;
     let tutorial = await Tutorial.findOne();
     if (!tutorial) {
       tutorial = new Tutorial();
@@ -221,6 +265,7 @@ router.put("/tutorial", adminAuth, async (req, res) => {
     if (description !== undefined) tutorial.description = description;
     if (youtubeUrl !== undefined) tutorial.youtubeUrl = youtubeUrl;
     if (tip !== undefined) tutorial.tip = tip;
+    if (extensionFileUrl !== undefined) tutorial.extensionFileUrl = extensionFileUrl;
 
     await tutorial.save();
     return res.json({ message: "Tutorial updated successfully", tutorial });

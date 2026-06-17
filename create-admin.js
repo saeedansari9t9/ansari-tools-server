@@ -5,7 +5,7 @@ require('dotenv').config();
 const createAdmin = async () => {
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ansari-tools');
+    await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb+srv://admin:admin@cluster0.fjybaeb.mongodb.net/ansari?retryWrites=true&w=majority');
     console.log('Connected to MongoDB');
 
     // Check if admin already exists

@@ -21,7 +21,8 @@ const adminSchema = new mongoose.Schema({
     trim: true
   },
   password: {
-    type: String
+    type: String,
+    select: false // Never return password in queries by default
   },
   isAdmin: {
     type: Boolean,

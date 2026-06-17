@@ -11,7 +11,7 @@ async function connectDB() {
       return;
     }
     
-    const connectionString = process.env.MONGODB_URI || 'mongodb+srv://admin:admin@cluster0.fjybaeb.mongodb.net/ansari';
+    const connectionString = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb+srv://admin:admin@cluster0.fjybaeb.mongodb.net/ansari?retryWrites=true&w=majority';
     
     console.log('🔄 Connecting to MongoDB...');
     

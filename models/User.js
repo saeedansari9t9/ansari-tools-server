@@ -28,6 +28,20 @@ const userSchema = new mongoose.Schema({
   tokenVersion: {
     type: Number,
     default: 0
+  },
+  // Single-session enforcement
+  sessionToken: {
+    type: String,
+    default: null,
+    select: false  // Don't expose in regular queries
+  },
+  isLocked: {
+    type: Boolean,
+    default: false
+  },
+  lockReason: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: true
