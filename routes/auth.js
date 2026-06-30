@@ -108,13 +108,9 @@ router.post('/login', async (req, res) => {
     }
 
 
-    // ✅ USER role only: Single-session check — if sessionToken already exists → LOCK account
+    // ✅ USER role only: Single-session check — if sessionToken already exists → REJECT LOGIN (Do not lock)
     if (user.sessionToken) {
-      user.isLocked = true;
-      user.lockReason = 'Login attempted from a second device while a session was already active.';
-      await user.save();
-
-      // Log suspicious attempt
+      // Log attempt
       try {
         const UserLog = require('../models/UserLog');
         const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim() || 'unknown';
@@ -122,8 +118,8 @@ router.post('/login', async (req, res) => {
       } catch (_) {}
 
       return res.status(403).json({
-        message: 'Your account has been locked because a login was attempted from a second device. Please contact the administrator to unlock your account.',
-        code: 'ACCOUNT_LOCKED'
+        message: 'You are already logged in on another device. Please log out from there first.',
+        code: 'ALREADY_LOGGED_IN'
       });
     }
 

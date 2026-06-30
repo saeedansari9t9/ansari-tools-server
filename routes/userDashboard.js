@@ -99,6 +99,24 @@ router.post("/:id/lock", adminAuth, async (req, res) => {
   }
 });
 
+// 🔹 ADMIN: manually clear a user's session
+router.post("/:id/clear-session", adminAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.sessionToken = null;
+    await user.save();
+
+    return res.json({ message: `Session cleared for @${user.username}. They can now login again.` });
+  } catch (err) {
+    console.error("Clear session error:", err);
+    return res.status(500).json({ message: "Failed to clear session", error: err.message });
+  }
+});
+
 
 // 🔹 ADMIN: create new user
 router.post("/", adminAuth, async (req, res) => {
