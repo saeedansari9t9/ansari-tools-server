@@ -3,19 +3,27 @@ const mongoose = require('mongoose')
 
 mongoose.set('strictQuery', true);
 
+let cachedConnection = null;
+
 async function connectDB() {
   try {
     // Check if already connected
     if (mongoose.connection.readyState === 1) {
       console.log('✅ MongoDB already connected');
-      return;
+      return mongoose.connection;
+    }
+    
+    if (cachedConnection) {
+      console.log('🔄 Awaiting existing MongoDB connection process...');
+      await cachedConnection;
+      return mongoose.connection;
     }
     
     const connectionString = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb+srv://admin:admin@cluster0.fjybaeb.mongodb.net/ansari?retryWrites=true&w=majority';
     
     console.log('🔄 Connecting to MongoDB...');
     
-    await mongoose.connect(connectionString, {
+    cachedConnection = mongoose.connect(connectionString, {
       serverSelectionTimeoutMS: 30000, // 30 seconds timeout
       socketTimeoutMS: 45000,
       connectTimeoutMS: 30000,
@@ -23,6 +31,8 @@ async function connectDB() {
       retryWrites: true,
       w: 'majority'
     });
+    
+    await cachedConnection;
     
     console.log('✅ MongoDB connected successfully');
     
@@ -33,13 +43,17 @@ async function connectDB() {
     
     mongoose.connection.on('disconnected', () => {
       console.warn('⚠️ MongoDB disconnected');
+      cachedConnection = null; // Clear connection cache on disconnect
     });
     
     mongoose.connection.on('reconnected', () => {
       console.log('✅ MongoDB reconnected');
     });
     
+    return mongoose.connection;
+    
   } catch (err) {
+    cachedConnection = null; // Clear connection cache on failure
     console.error('\n❌ MongoDB Connection Error:', err.message);
     
     if (err.message.includes('ETIMEOUT') || err.message.includes('ENOTFOUND')) {

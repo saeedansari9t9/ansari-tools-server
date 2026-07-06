@@ -42,8 +42,13 @@ app.use(
 // ==========================
 // DB connection checker
 // ==========================
-const checkDBConnection = (req, res, next) => {
+const checkDBConnection = async (req, res, next) => {
   try {
+    if (mongoose.connection?.readyState === 1) return next();
+
+    console.log(`⚠️ DB connection readyState is ${mongoose.connection?.readyState}. Waiting for connection...`);
+    await connectDB();
+
     if (mongoose.connection?.readyState === 1) return next();
 
     return res.status(503).json({
