@@ -1,6 +1,8 @@
 const express = require("express");
 const Expense = require("../models/Expense");
+const websiteAdminAuth = require('../middleware/websiteAdminAuth');
 const router = express.Router();
+router.use(websiteAdminAuth);
 
 // ✅ Add new expense
 router.post("/", async (req, res) => {

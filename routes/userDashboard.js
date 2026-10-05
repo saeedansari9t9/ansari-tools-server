@@ -5,6 +5,7 @@ const Admin = require("../models/Admin"); // optional, not needed
 const User = require("../models/User");   // ✅ your users collection model
 const adminAuth = require("../middleware/adminAuth"); // ✅ already exists
 const Tutorial = require("../models/Tutorial");
+const { signUserToken, validateStrongPassword } = require('../utils/security');
 
 // 🔹 current user info
 router.get("/me", userAuth, async (req, res) => {
@@ -175,6 +176,8 @@ router.post("/:id/reset-password", adminAuth, async (req, res) => {
     if (!password) {
       return res.status(400).json({ message: "New password required" });
     }
+    const passwordError = validateStrongPassword(password);
+    if (passwordError) return res.status(400).json({ message: passwordError });
 
     const user = await User.findById(req.params.id);
     if (!user) {
@@ -220,7 +223,9 @@ router.get("/tools/:slug/cookies", userAuth, async (req, res) => {
     const now = new Date();
 
     // 1. Find the tool
-    const tool = await require("../models/Tool").findOne({ slug: slug.toLowerCase().trim() });
+    const tool = await require("../models/Tool")
+      .findOne({ slug: slug.toLowerCase().trim() })
+      .select('+cookies');
     if (!tool) {
       return res.status(404).json({ message: "Tool not found" });
     }
@@ -239,9 +244,10 @@ router.get("/tools/:slug/cookies", userAuth, async (req, res) => {
 
     // 3. Return the parsed cookies list
     let parsedCookies = [];
-    if (tool.cookies) {
+    const encryptedCookies = tool.revealCookies();
+    if (encryptedCookies) {
       try {
-        parsedCookies = JSON.parse(tool.cookies);
+        parsedCookies = JSON.parse(encryptedCookies);
       } catch (parseErr) {
         console.error("Error parsing tool cookies JSON:", parseErr);
         // Fallback: If it's a simple string, return it as string or wrap it
@@ -300,6 +306,8 @@ router.post("/change-password", userAuth, async (req, res) => {
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ message: "Current password and new password are required" });
     }
+    const passwordError = validateStrongPassword(newPassword);
+    if (passwordError) return res.status(400).json({ message: passwordError });
 
     // Find the user, including the password field
     const user = await User.findById(req.user.userId).select("+password");
@@ -315,9 +323,10 @@ router.post("/change-password", userAuth, async (req, res) => {
 
     // Update to new password
     user.password = newPassword; // the pre-save hook will hash this automatically!
+    user.sessionToken = null;
     await user.save();
 
-    return res.json({ message: "Password changed successfully" });
+    return res.json({ message: "Password changed. Please log in again." });
   } catch (err) {
     console.error("Change password error:", err);
     return res.status(500).json({ message: "Failed to change password", error: err.message });
@@ -351,18 +360,8 @@ router.put("/update-profile", userAuth, async (req, res) => {
     user.name = name.trim();
     await user.save();
 
-    // Generate fresh JWT token
-    const jwt = require("jsonwebtoken");
-    const token = jwt.sign(
-      {
-        userId: user._id,
-        username: user.username,
-        role: user.role,
-        tokenVersion: user.tokenVersion || 0
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    // Generate a fresh token with the same strict issuer/audience rules.
+    const token = signUserToken(user);
 
     return res.json({
       message: "Profile updated successfully",

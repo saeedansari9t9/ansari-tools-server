@@ -1,49 +1,46 @@
-// routes/tools.js
 const express = require('express');
+const Tool = require('../models/Tool');
+const ToolCredential = require('../models/ToolCredential');
+const UserTool = require('../models/UserTool');
+const userAuth = require('../middleware/userAuth');
+
 const router = express.Router();
-const jwt = require('jsonwebtoken');
-const ToolCredential = require('../models/ToolCredential'); // Naya model banayenge
 
-// JWT verify middleware
-const authMiddleware = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ msg: 'No token provided' });
-  }
-
-  const token = authHeader.split(' ')[1];
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({ msg: 'Invalid or expired token' });
-  }
-};
-
-// POST /api/get-credentials
-router.post('/get-credentials', authMiddleware, async (req, res) => {
-  const { tool } = req.body;
-
-  if (!tool) {
-    return res.status(400).json({ msg: 'Tool name is required' });
+// Legacy credential endpoint used by the extension. A current database-backed
+// session and an active tool assignment are both required.
+router.post('/get-credentials', userAuth, async (req, res) => {
+  const requestedTool = typeof req.body.tool === 'string' ? req.body.tool.toLowerCase().trim() : '';
+  if (!requestedTool || requestedTool.length > 100) {
+    return res.status(400).json({ message: 'Valid tool name is required' });
   }
 
   try {
-    const credential = await ToolCredential.findOne({ toolName: tool });
+    const escapedTool = requestedTool.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const tool = await Tool.findOne({
+      $or: [{ slug: requestedTool }, { name: { $regex: `^${escapedTool}$`, $options: 'i' } }],
+      active: true,
+    });
+    if (!tool) return res.status(404).json({ message: 'Tool not found' });
 
-    if (!credential) {
-      return res.status(404).json({ msg: 'Credentials not found for this tool' });
+    if (req.user.role !== 'admin') {
+      const assignment = await UserTool.exists({
+        user: req.user.userId,
+        tool: tool._id,
+        status: 'active',
+        expiresAt: { $gt: new Date() },
+      });
+      if (!assignment) {
+        return res.status(403).json({ message: 'Active subscription required' });
+      }
     }
 
-    res.json({
-      email: credential.email,
-      password: credential.password // Abhi plain, baad mein encrypt kar lenge
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: 'Server error' });
+    const credential = await ToolCredential.findOne({ toolName: tool.name.toLowerCase() }).select('+password');
+    if (!credential) return res.status(404).json({ message: 'Credentials not found' });
+
+    res.set('Cache-Control', 'no-store');
+    return res.json({ email: credential.email, password: credential.revealPassword() });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error' });
   }
 });
 

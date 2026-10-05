@@ -3,6 +3,7 @@ const express = require("express");
 const Product = require("../models/Product");
 const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
+const websiteAdminAuth = require('../middleware/websiteAdminAuth');
 
 const router = express.Router();
 
@@ -83,7 +84,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // Create new product
-router.post("/", upload.single("image"), async (req, res) => {
+router.post("/", websiteAdminAuth, upload.single("image"), async (req, res) => {
   try {
     const productData = req.body;
     
@@ -119,46 +120,8 @@ router.post("/", upload.single("image"), async (req, res) => {
   }
 });
 
-// Update product
-router.put("/:id", upload.single("image"), async (req, res) => {
-  try {
-    const productData = req.body;
-    
-    // If new image was uploaded, use Cloudinary URL
-    if (req.file) {
-      productData.image = req.file.path;
-    }
-    
-    // Parse variants and features if they're strings
-    if (productData.variants && typeof productData.variants === 'string') {
-      productData.variants = JSON.parse(productData.variants);
-    }
-    if (productData.features && typeof productData.features === 'string') {
-      productData.features = JSON.parse(productData.features);
-    }
-    if (productData.specifications && typeof productData.specifications === 'string') {
-      productData.specifications = JSON.parse(productData.specifications);
-    }
-    
-    const product = await Product.findByIdAndUpdate(
-      req.params.id,
-      productData,
-      { new: true, runValidators: true }
-    );
-    
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
-    
-    res.json(product);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
 // Delete product
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", websiteAdminAuth, async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) {
@@ -172,7 +135,7 @@ router.delete("/:id", async (req, res) => {
 });
 
 // Upload image only
-router.post("/upload-image", upload.single("image"), async (req, res) => {
+router.post("/upload-image", websiteAdminAuth, upload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: "No image uploaded" });
@@ -192,7 +155,7 @@ router.post("/upload-image", upload.single("image"), async (req, res) => {
 });
 
 // Update product
-router.put("/:id", upload.single("image"), async (req, res) => {
+router.put("/:id", websiteAdminAuth, upload.single("image"), async (req, res) => {
   try {
     const productId = req.params.id;
     const productData = req.body;

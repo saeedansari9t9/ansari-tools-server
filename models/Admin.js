@@ -12,6 +12,7 @@ const adminSchema = new mongoose.Schema({
   },
   email: {
     type: String,
+    required: true,
     unique: true,
     lowercase: true,
     trim: true
@@ -22,7 +23,23 @@ const adminSchema = new mongoose.Schema({
   },
   password: {
     type: String,
+    required: true,
     select: false // Never return password in queries by default
+  },
+  tokenVersion: {
+    type: Number,
+    default: 0,
+    select: false
+  },
+  failedLoginAttempts: {
+    type: Number,
+    default: 0,
+    select: false
+  },
+  lockUntil: {
+    type: Date,
+    default: null,
+    select: false
   },
   isAdmin: {
     type: Boolean,
@@ -50,6 +67,7 @@ adminSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   
   try {
+    this.tokenVersion = (this.tokenVersion || 0) + 1;
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
     next();

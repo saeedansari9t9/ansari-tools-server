@@ -1,38 +1,44 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
-const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const userAuth = require('../middleware/userAuth');
+const { authWriteRateLimit, loginRateLimit } = require('../middleware/rateLimits');
+const { signUserToken, validateStrongPassword } = require('../utils/security');
 
 // POST /api/auth/signup - User registration
-router.post('/signup', async (req, res) => {
+router.post('/signup', authWriteRateLimit, async (req, res) => {
   try {
-    const { name, username, password } = req.body;
+    if (process.env.ALLOW_PUBLIC_SIGNUP !== 'true') {
+      return res.status(403).json({ message: 'Public signup is disabled. Contact an administrator.' });
+    }
 
-    if (!name || !username || !password) {
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    const username = typeof req.body.username === 'string' ? req.body.username.toLowerCase().trim() : '';
+    const password = typeof req.body.password === 'string' ? req.body.password : '';
+
+    if (!name || !username || !password || name.length > 100 || username.length > 100) {
       return res.status(400).json({ message: 'Please provide name, username, and password' });
     }
 
-    const existingUser = await User.findOne({ username: username.toLowerCase() });
+    const passwordError = validateStrongPassword(password);
+    if (passwordError) return res.status(400).json({ message: passwordError });
+
+    const existingUser = await User.findOne({ username });
     if (existingUser) {
       return res.status(409).json({ message: 'Username already exists' });
     }
 
     const user = new User({
-      name: name.trim(),
-      username: username.toLowerCase().trim(),
+      name,
+      username,
       password,
       role: 'user'
     });
 
     const savedUser = await user.save();
 
-    const token = jwt.sign(
-      { userId: savedUser._id, username: savedUser.username, role: savedUser.role, tokenVersion: savedUser.tokenVersion || 0 },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = signUserToken(savedUser);
 
     return res.status(201).json({
       message: 'User registered successfully',
@@ -50,16 +56,17 @@ router.post('/signup', async (req, res) => {
 });
 
 // POST /api/auth/login - User login (single session enforced)
-router.post('/login', async (req, res) => {
+router.post('/login', loginRateLimit, async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const username = typeof req.body.username === 'string' ? req.body.username.toLowerCase().trim() : '';
+    const password = typeof req.body.password === 'string' ? req.body.password : '';
 
-    if (!username || !password) {
+    if (!username || !password || username.length > 100 || password.length > 128) {
       return res.status(400).json({ message: 'Please provide username and password' });
     }
 
     // Find user with password + sessionToken
-    const user = await User.findOne({ username: username.toLowerCase() })
+    const user = await User.findOne({ username })
       .select('+password +sessionToken');
 
     if (!user) {
@@ -74,17 +81,7 @@ router.post('/login', async (req, res) => {
 
     // ✅ ADMIN role: skip session locking — admin can login from anywhere freely
     if (user.role === 'admin') {
-      const token = jwt.sign(
-        {
-          userId: user._id,
-          username: user.username,
-          role: user.role,
-          tokenVersion: user.tokenVersion || 0
-          // No sessionToken for admin — no restriction
-        },
-        process.env.JWT_SECRET,
-        { expiresIn: '7d' }
-      );
+      const token = signUserToken(user);
 
       try {
         const UserLog = require('../models/UserLog');
@@ -129,17 +126,7 @@ router.post('/login', async (req, res) => {
     await user.save();
 
     // Generate JWT with sessionToken embedded
-    const token = jwt.sign(
-      {
-        userId: user._id,
-        username: user.username,
-        role: user.role,
-        tokenVersion: user.tokenVersion || 0,
-        sessionToken
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = signUserToken(user, { sessionToken });
 
     // Save Login log
     try {

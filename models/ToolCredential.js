@@ -1,5 +1,6 @@
 // models/ToolCredential.js
 const mongoose = require('mongoose');
+const { decryptSensitive, encryptSensitive } = require('../utils/fieldEncryption');
 
 const toolCredentialSchema = new mongoose.Schema({
   toolName: {
@@ -14,12 +15,18 @@ const toolCredentialSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: true
+    required: true,
+    select: false,
+    set: encryptSensitive
   },
   lastUpdated: {
     type: Date,
     default: Date.now
   }
 });
+
+toolCredentialSchema.methods.revealPassword = function revealPassword() {
+  return decryptSensitive(this.password);
+};
 
 module.exports = mongoose.model('ToolCredential', toolCredentialSchema);

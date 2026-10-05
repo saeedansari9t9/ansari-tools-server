@@ -1,10 +1,13 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
-const ConnectDB= async()=>{
+async function connectDB() {
+  const connectionString = process.env.MONGODB_URI;
+  if (!connectionString) {
+    throw new Error('MONGODB_URI is required. Configure it in the deployment environment.');
+  }
 
-await mongoose.connect(process.env.DBURI || "mongodb+srv://ansaritools3_db_user:<db_password>@cluster0.fjybaeb.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
-  .then(() => console.log('Connected!'))
-  .catch(() => console.log('Not Connected!'))
+  await mongoose.connect(connectionString);
+  console.log('MongoDB connected');
 }
 
-module.exports=ConnectDB
+module.exports = connectDB;

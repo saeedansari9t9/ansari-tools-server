@@ -1,8 +1,10 @@
 // routes/sales.js
 const express = require("express");
 const Sale = require("../models/Sale");
+const websiteAdminAuth = require('../middleware/websiteAdminAuth');
 
 const router = express.Router();
+router.use(websiteAdminAuth);
 
 // Helper: parse YYYY-MM-DD to UTC start/end
 function getDayRange(dateStr) {

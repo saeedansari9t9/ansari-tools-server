@@ -1,106 +1,59 @@
-// const jwt = require("jsonwebtoken");
-// const Admin = require("../models/Admin");
+const Admin = require('../models/Admin');
+const User = require('../models/User');
+const { verifyAdminToken, verifyUserToken } = require('../utils/security');
 
-// const adminAuth = async (req, res, next) => {
-//   try {
-//     // ✅ 1) Cookie se token (SSO)
-//     const cookieToken = req.cookies?.admin_token;
-
-//     // ✅ 2) Header se token (fallback / Postman)
-//     const headerToken = req.header("Authorization")?.replace("Bearer ", "");
-
-//     const token = cookieToken || headerToken;
-
-//     if (!token) {
-//       return res.status(401).json({ message: "No token, authorization denied" });
-//     }
-
-//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-//     // Check if admin exists and is active
-//     const admin = await Admin.findById(decoded.adminId);
-//     if (!admin || !admin.isActive) {
-//       return res.status(401).json({ message: "Admin not found or deactivated" });
-//     }
-
-//     req.admin = admin;
-//     next();
-//   } catch (error) {
-//     console.error("Admin auth error:", error);
-//     return res.status(401).json({ message: "Token is not valid" });
-//   }
-// };
-
-// module.exports = adminAuth;
-
-
-
-
-
-
-
-
-
-
-
-//Temporary admin auth middleware
-
-// ⚠️ TEMPORARY ADMIN AUTH (FOR TESTING ONLY)
-// Allows access if:
-// 1) Real admin logged in via admin panel (admin_token cookie)
-// OR
-// 2) User logged in via dashboard AND user.role === "admin"
-//
-// ❗ REMOVE user-role logic before production launch
-
-const jwt = require("jsonwebtoken");
-const Admin = require("../models/Admin");
-const User = require("../models/User");
-
-const adminAuth = async (req, res, next) => {
+// Dashboard administration accepts either a real website-admin cookie or a
+// dashboard User whose current database role is "admin". Website-admin routes
+// use websiteAdminAuth instead and never accept a dashboard bearer token.
+module.exports = async function adminAuth(req, res, next) {
   try {
-    // ===============================
-    // 1️⃣ ADMIN PANEL LOGIN (COOKIE)
-    // ===============================
     const cookieToken = req.cookies?.admin_token;
     if (cookieToken) {
-      const decoded = jwt.verify(cookieToken, process.env.JWT_SECRET);
-
-      const admin = await Admin.findById(decoded.adminId);
-      if (admin && admin.isActive) {
-        req.admin = admin;
-        return next(); // ✅ real admin
-      }
-    }
-
-    // ==========================================
-    // 2️⃣ DASHBOARD USER LOGIN (TEMPORARY ADMIN)
-    // ==========================================
-    const headerToken = req.header("Authorization")?.replace("Bearer ", "");
-    if (headerToken) {
-      const decoded = jwt.verify(headerToken, process.env.JWT_SECRET);
-
-      // 🔒 IMPORTANT: role DB se verify
-      const user = await User.findById(decoded.userId).select("role username tokenVersion");
-      if (user && user.role === "admin") {
-        if (decoded.tokenVersion === undefined || decoded.tokenVersion !== (user.tokenVersion || 0)) {
-          return res.status(401).json({ message: "Session expired, please log in again" });
+      try {
+        const decoded = verifyAdminToken(cookieToken);
+        const admin = await Admin.findById(decoded.adminId).select('+tokenVersion');
+        if (
+          decoded.type === 'admin' &&
+          admin &&
+          admin.isActive &&
+          decoded.tokenVersion === (admin.tokenVersion || 0)
+        ) {
+          req.admin = admin;
+          return next();
         }
-        req.admin = {
-          _id: user._id,
-          username: user.username,
-          role: "admin",
-          source: "user-role-temp", // 🔴 TEMP FLAG
-        };
-        return next(); // ✅ temporary admin
+      } catch (_) {
+        // A stale website cookie must not block a valid dashboard bearer token.
       }
     }
 
-    return res.status(403).json({ message: "Admin access required" });
+    const authorization = req.get('authorization') || '';
+    if (!authorization.startsWith('Bearer ')) {
+      return res.status(403).json({ message: 'Dashboard admin access required' });
+    }
+
+    const decoded = verifyUserToken(authorization.slice(7));
+    if (decoded.type !== 'user' || !decoded.userId) {
+      return res.status(401).json({ message: 'Invalid dashboard session' });
+    }
+
+    const user = await User.findById(decoded.userId).select('role username tokenVersion isLocked');
+    if (
+      !user ||
+      user.isLocked ||
+      user.role !== 'admin' ||
+      decoded.tokenVersion !== (user.tokenVersion || 0)
+    ) {
+      return res.status(403).json({ message: 'Dashboard admin access required' });
+    }
+
+    req.admin = {
+      _id: user._id,
+      username: user.username,
+      role: 'admin',
+      source: 'dashboard-user',
+    };
+    return next();
   } catch (error) {
-    console.error("Admin auth error:", error);
-    return res.status(401).json({ message: "Unauthorized" });
+    return res.status(401).json({ message: 'Invalid or expired session' });
   }
 };
-
-module.exports = adminAuth;

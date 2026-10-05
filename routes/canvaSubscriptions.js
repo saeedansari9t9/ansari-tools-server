@@ -2,6 +2,28 @@ const express = require('express');
 const router = express.Router();
 const CanvaSubscription = require('../models/CanvaSubscription');
 const { sendCanvaSubscriptionEmail } = require('../utils/emailService');
+const websiteAdminAuth = require('../middleware/websiteAdminAuth');
+
+router.use(websiteAdminAuth);
+
+// Keep this static route before /:id so Express does not treat "stats" as an id.
+router.get('/stats/overview', async (req, res) => {
+  try {
+    const [total, active, inactive, expired, oneMonth, threeMonths, sixMonths, oneYear] = await Promise.all([
+      CanvaSubscription.countDocuments(),
+      CanvaSubscription.countDocuments({ status: 'active' }),
+      CanvaSubscription.countDocuments({ status: 'inactive' }),
+      CanvaSubscription.countDocuments({ status: 'expired' }),
+      CanvaSubscription.countDocuments({ duration: '1 Month' }),
+      CanvaSubscription.countDocuments({ duration: '3 Months' }),
+      CanvaSubscription.countDocuments({ duration: '6 Months' }),
+      CanvaSubscription.countDocuments({ duration: '1 Year' }),
+    ]);
+    return res.json({ total, active, inactive, expired, oneMonth, threeMonths, sixMonths, oneYear });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching statistics' });
+  }
+});
 
 // GET all canva subscriptions
 router.get('/', async (req, res) => {
@@ -172,34 +194,6 @@ router.delete('/:id', async (req, res) => {
     res.json({ message: 'Canva subscription deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting canva subscription', error: error.message });
-  }
-});
-
-// GET statistics
-router.get('/stats/overview', async (req, res) => {
-  try {
-    const total = await CanvaSubscription.countDocuments();
-    const active = await CanvaSubscription.countDocuments({ status: 'active' });
-    const inactive = await CanvaSubscription.countDocuments({ status: 'inactive' });
-    const expired = await CanvaSubscription.countDocuments({ status: 'expired' });
-
-    const oneMonth = await CanvaSubscription.countDocuments({ duration: '1 Month' });
-    const threeMonths = await CanvaSubscription.countDocuments({ duration: '3 Months' });
-    const sixMonths = await CanvaSubscription.countDocuments({ duration: '6 Months' });
-    const oneYear = await CanvaSubscription.countDocuments({ duration: '1 Year' });
-
-    res.json({
-      total,
-      active,
-      inactive,
-      expired,
-      oneMonth,
-      threeMonths,
-      sixMonths,
-      oneYear
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching statistics', error: error.message });
   }
 });
 

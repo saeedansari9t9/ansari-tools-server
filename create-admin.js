@@ -1,40 +1,46 @@
 const mongoose = require('mongoose');
 const Admin = require('./models/Admin');
+const { validateStrongPassword } = require('./utils/security');
 require('dotenv').config();
 
-const createAdmin = async () => {
+async function createAdmin() {
   try {
-    // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb+srv://admin:admin@cluster0.fjybaeb.mongodb.net/ansari?retryWrites=true&w=majority');
-    console.log('Connected to MongoDB');
+    const connectionString = process.env.MONGODB_URI;
+    const email = process.env.ADMIN_EMAIL?.toLowerCase().trim();
+    const password = process.env.ADMIN_PASSWORD;
 
-    // Check if admin already exists
-    const existingAdmin = await Admin.findOne({ email: 'admin@ansaritools.com' });
+    if (!connectionString) throw new Error('MONGODB_URI is required');
+    if (!email || !password) throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD are required');
+
+    const passwordError = validateStrongPassword(password);
+    if (passwordError) throw new Error(passwordError);
+
+    await mongoose.connect(connectionString);
+
+    const existingAdmin = await Admin.findOne({ email });
     if (existingAdmin) {
       console.log('Admin already exists:', existingAdmin.email);
-      process.exit(0);
+      return;
     }
 
-    // Create new admin
     const admin = new Admin({
-      firstName: 'Admin',
-      lastName: 'User',
-      email: 'admin@ansaritools.com',
-      phone: '+1234567890',
-      password: 'admin123',
+      firstName: process.env.ADMIN_FIRST_NAME || 'Admin',
+      lastName: process.env.ADMIN_LAST_NAME || 'User',
+      email,
+      phone: process.env.ADMIN_PHONE || '',
+      password,
       isAdmin: true,
-      isActive: true
+      isActive: true,
     });
 
     await admin.save();
     console.log('Admin created successfully:', admin.email);
-    console.log('Password: admin123');
-    
-    process.exit(0);
   } catch (error) {
-    console.error('Error creating admin:', error);
-    process.exit(1);
+    console.error('Admin creation failed:', error.message);
+    process.exitCode = 1;
+  } finally {
+    await mongoose.disconnect().catch(() => {});
   }
-};
+}
 
 createAdmin();

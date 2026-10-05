@@ -8,16 +8,22 @@ const UserTool = require("../models/UserTool");
 const adminAuth = require("../middleware/adminAuth");
 const Tutorial = require("../models/Tutorial");
 
+function serializeAdminTool(tool) {
+  const value = tool.toObject();
+  value.cookies = tool.revealCookies();
+  return value;
+}
+
 // ✅ GET tools (Admin UI)
 router.get("/tools", adminAuth, async (req, res) => {
   try {
     // If specific query, return only active tools, otherwise return all
     const filter = req.query.activeOnly === "true" ? { active: true } : {};
     const tools = await Tool.find(filter)
-      .select("name slug image accessUrl active description cookies")
+      .select("name slug image accessUrl active description +cookies")
       .sort({ name: 1 });
 
-    return res.json({ tools });
+    return res.json({ tools: tools.map(serializeAdminTool) });
   } catch (err) {
     console.error("GET /admin/tools error:", err);
     return res.status(500).json({ message: "Server error" });
@@ -216,7 +222,7 @@ router.post("/tools", adminAuth, async (req, res) => {
     });
 
     await tool.save();
-    return res.status(201).json({ message: "Tool created successfully", tool });
+    return res.status(201).json({ message: "Tool created successfully", tool: serializeAdminTool(tool) });
   } catch (err) {
     console.error("POST /admin/tools error:", err);
     if (err.code === 11000) {
@@ -230,19 +236,19 @@ router.post("/tools", adminAuth, async (req, res) => {
 router.put("/tools/:id", adminAuth, async (req, res) => {
   try {
     const { name, description, slug, image, accessUrl, cookies, active } = req.body;
-    const updateData = {};
-    if (name !== undefined) updateData.name = name;
-    if (description !== undefined) updateData.description = description;
-    if (slug !== undefined) updateData.slug = slug;
-    if (image !== undefined) updateData.image = image;
-    if (accessUrl !== undefined) updateData.accessUrl = accessUrl;
-    if (cookies !== undefined) updateData.cookies = cookies;
-    if (active !== undefined) updateData.active = active;
-
-    const tool = await Tool.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
+    const tool = await Tool.findById(req.params.id).select('+cookies');
     if (!tool) return res.status(404).json({ message: "Tool not found" });
 
-    return res.json({ message: "Tool updated successfully", tool });
+    if (name !== undefined) tool.name = name;
+    if (description !== undefined) tool.description = description;
+    if (slug !== undefined) tool.slug = slug;
+    if (image !== undefined) tool.image = image;
+    if (accessUrl !== undefined) tool.accessUrl = accessUrl;
+    if (cookies !== undefined) tool.cookies = cookies;
+    if (active !== undefined) tool.active = active;
+    await tool.save();
+
+    return res.json({ message: "Tool updated successfully", tool: serializeAdminTool(tool) });
   } catch (err) {
     console.error("PUT /admin/tools/:id error:", err);
     return res.status(500).json({ message: "Server error" });
