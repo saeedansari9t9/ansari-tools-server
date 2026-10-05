@@ -14,9 +14,9 @@ async function connectDB() {
     return mongoose.connection;
   }
 
-  const connectionString = process.env.MONGODB_URI;
+  const connectionString = process.env.MONGODB_URI || process.env.MONGO_URI;
   if (!connectionString) {
-    throw new Error('MONGODB_URI is required. Configure it in the deployment environment.');
+    throw new Error('MONGODB_URI (or MONGO_URI) is required. Configure it in the deployment environment.');
   }
 
   try {

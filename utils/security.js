@@ -111,8 +111,8 @@ function validateStrongPassword(password) {
 function validateRuntimeSecrets() {
   getJwtSecret();
   getEncryptionKey();
-  if (!process.env.MONGODB_URI) {
-    throw new Error('MONGODB_URI is required');
+  if (!process.env.MONGODB_URI && !process.env.MONGO_URI) {
+    throw new Error('MONGODB_URI or MONGO_URI is required');
   }
 }
 
