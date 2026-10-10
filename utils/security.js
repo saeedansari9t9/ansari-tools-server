@@ -4,7 +4,7 @@ const { getEncryptionKey } = require('./fieldEncryption');
 const TOKEN_ISSUER = 'ansari-tools-api';
 const ADMIN_TOKEN_AUDIENCE = 'ansari-tools-website-admin';
 const USER_TOKEN_AUDIENCE = 'ansari-tools-dashboard';
-const ADMIN_SESSION_MS = 8 * 60 * 60 * 1000;
+const ADMIN_SESSION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
@@ -26,7 +26,7 @@ function signAdminToken(admin) {
       algorithm: 'HS256',
       audience: ADMIN_TOKEN_AUDIENCE,
       issuer: TOKEN_ISSUER,
-      expiresIn: '8h',
+      expiresIn: '30d',
     }
   );
 }
@@ -54,7 +54,7 @@ function signUserToken(user, extraClaims = {}) {
       algorithm: 'HS256',
       audience: USER_TOKEN_AUDIENCE,
       issuer: TOKEN_ISSUER,
-      expiresIn: '12h',
+      expiresIn: '30d',
     }
   );
 }
