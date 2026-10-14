@@ -399,7 +399,7 @@ const sendCanvaSubscriptionEmail = async (email, duration, subscriptionDate) => 
               <div class="warning-box">
                 <strong>📌 Important:</strong> Please keep this email safe as it contains your subscription details. If you have any questions or need support, don't hesitate to contact us on WhatsApp:
                 <div style="text-align: center; margin-top: 15px;">
-                  <a href="https://wa.me/+923102204842" style="display: inline-block; background: #25D366; color: white; padding: 8px 16px; border-radius: 20px; text-decoration: none; font-size: 14px; font-weight: 600; box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3); transition: all 0.3s ease;">
+                  <a href="https://wa.me/923227866655" style="display: inline-block; background: #25D366; color: white; padding: 8px 16px; border-radius: 20px; text-decoration: none; font-size: 14px; font-weight: 600; box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3); transition: all 0.3s ease;">
                     💬 WhatsApp Support
                   </a>
                 </div>
