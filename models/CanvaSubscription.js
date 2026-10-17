@@ -24,6 +24,10 @@ const canvaSubscriptionSchema = new mongoose.Schema({
     required: true,
     enum: ['active', 'inactive', 'expired'],
     default: 'active'
+  },
+  lastBroadcastDate: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true
@@ -33,5 +37,6 @@ const canvaSubscriptionSchema = new mongoose.Schema({
 canvaSubscriptionSchema.index({ email: 1 });
 canvaSubscriptionSchema.index({ status: 1 });
 canvaSubscriptionSchema.index({ date: -1 });
+canvaSubscriptionSchema.index({ lastBroadcastDate: 1 });
 
 module.exports = mongoose.model('CanvaSubscription', canvaSubscriptionSchema);

@@ -1,22 +1,76 @@
 const nodemailer = require('nodemailer');
+const path = require('path');
+const fs = require('fs');
 
-// Create transporter using Gmail SMTP
+// Path to official assets
+const ASSETS_DIR = path.join(__dirname, '..', 'assets');
+const BLACK_LOGO_PATH = path.join(ASSETS_DIR, 'Ansari Tools Logo Black.png');
+const GREY_LOGO_PATH = path.join(ASSETS_DIR, 'Ansari Tools Logo Grey.png');
+
+// Helper to get standard CID attachments for logos
+const getLogoAttachments = () => {
+  const attachments = [];
+  if (fs.existsSync(BLACK_LOGO_PATH)) {
+    attachments.push({
+      filename: 'ansari-tools-black.png',
+      path: BLACK_LOGO_PATH,
+      cid: 'ansari-logo-black'
+    });
+  }
+  if (fs.existsSync(GREY_LOGO_PATH)) {
+    attachments.push({
+      filename: 'ansari-tools-grey.png',
+      path: GREY_LOGO_PATH,
+      cid: 'ansari-logo-grey'
+    });
+  }
+  return attachments;
+};
+
+// Create transporter using SMTP (supports Namecheap Private Email and Gmail)
 const createTransporter = () => {
+  const isGmail = !process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_USER.endsWith('@gmail.com');
+
+  if (isGmail) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+  }
+
+  // Namecheap Private Email / Custom SMTP
+  const host = process.env.EMAIL_HOST || 'mail.privateemail.com';
+  const port = parseInt(process.env.EMAIL_PORT, 10) || 465;
+  const secure = process.env.EMAIL_SECURE !== undefined 
+    ? process.env.EMAIL_SECURE === 'true' 
+    : (port === 465);
+
   return nodemailer.createTransport({
-    service: 'gmail',
+    host,
+    port,
+    secure,
     auth: {
-      user: process.env.EMAIL_USER, // Your Gmail address
-      pass: process.env.EMAIL_PASS  // Your Gmail App Password
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    },
+    tls: {
+      rejectUnauthorized: false
     }
   });
 };
 
-// Send Canva subscription notification email
-const sendCanvaSubscriptionEmail = async (email, duration, subscriptionDate) => {
+/**
+ * 1. Send Canva subscription notification email (Hostinger-inspired design)
+ */
+const sendCanvaSubscriptionEmail = async (email, duration = '1 Year', subscriptionDate = new Date()) => {
   try {
     const transporter = createTransporter();
 
-    // Calculate expiry date
+    // Calculate expiry date based on plan
+    const startDate = new Date(subscriptionDate);
     const expiryDate = new Date(subscriptionDate);
     if (duration === '1 Month') {
       expiryDate.setMonth(expiryDate.getMonth() + 1);
@@ -26,7 +80,21 @@ const sendCanvaSubscriptionEmail = async (email, duration, subscriptionDate) => 
       expiryDate.setMonth(expiryDate.getMonth() + 6);
     } else if (duration === '1 Year') {
       expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+    } else {
+      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
     }
+
+    const formattedStartDate = startDate.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+
+    const formattedExpiryDate = expiryDate.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
 
     const mailOptions = {
       from: {
@@ -34,418 +102,508 @@ const sendCanvaSubscriptionEmail = async (email, duration, subscriptionDate) => 
         address: process.env.EMAIL_USER
       },
       to: email,
-      subject: 'Your Canva Pro Subscription is Ready - Ansari Tools',
+      subject: 'Your Canva Pro Subscription is Ready – Ansari Tools',
       headers: {
         'X-Priority': '1',
         'X-MSMail-Priority': 'High',
         'Importance': 'high',
         'X-Mailer': 'Ansari Tools Email Service'
       },
+      attachments: getLogoAttachments(),
       html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <meta name="color-scheme" content="light dark">
-          <meta name="supported-color-schemes" content="light dark">
-          <title>Thank You for Your Purchase - Ansari Tools</title>
-          <style>
-            * {
-              margin: 0;
-              padding: 0;
-              box-sizing: border-box;
-            }
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-              line-height: 1.6;
-              color: #333;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              padding: 10px;
-              min-height: 100vh;
-            }
-            .email-container {
-              max-width: 600px;
-              margin: 0 auto;
-              background: white;
-              border-radius: 20px;
-              overflow: hidden;
-              box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            }
-            .header {
-              background: linear-gradient(135deg, #0B2E33 0%, #4F7C82 100%);
-              color: white;
-              padding: 30px 20px;
-              text-align: center;
-              position: relative;
-            }
-            .header::before {
-              content: '';
-              position: absolute;
-              top: 0;
-              left: 0;
-              right: 0;
-              bottom: 0;
-              background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/><circle cx="10" cy="60" r="0.5" fill="white" opacity="0.1"/><circle cx="90" cy="40" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
-              opacity: 0.3;
-            }
-            .logo {
-              font-size: 32px;
-              font-weight: 800;
-              margin-bottom: 8px;
-              position: relative;
-              z-index: 1;
-            }
-            .tagline {
-              font-size: 16px;
-              opacity: 0.9;
-              position: relative;
-              z-index: 1;
-            }
-            .content {
-              padding: 30px 20px;
-            }
-            .thank-you {
-              text-align: center;
-              margin-bottom: 30px;
-            }
-            .thank-you h1 {
-              color: #0B2E33;
-              font-size: 28px;
-              font-weight: 700;
-              margin-bottom: 10px;
-            }
-            .thank-you p {
-              color: #666;
-              font-size: 16px;
-              line-height: 1.5;
-            }
-            .subscription-card {
-              background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-              border-radius: 15px;
-              padding: 25px;
-              margin: 25px 0;
-              border: 1px solid #e0e0e0;
-              position: relative;
-              overflow: hidden;
-            }
-            .subscription-card::before {
-              content: '';
-              position: absolute;
-              top: 0;
-              left: 0;
-              width: 5px;
-              height: 100%;
-              background: linear-gradient(135deg, #0B2E33, #4F7C82);
-            }
-            .card-title {
-              color: #0B2E33;
-              font-size: 20px;
-              font-weight: 600;
-              margin-bottom: 20px;
-              display: flex;
-              align-items: center;
-              gap: 10px;
-            }
-            .detail-grid {
-              display: grid;
-              grid-template-columns: 1fr;
-              gap: 12px;
-            }
-            .detail-item {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              padding: 8px 0;
-              border-bottom: 1px solid #e0e0e0;
-            }
-            .detail-item:last-child {
-              border-bottom: none;
-            }
-            .detail-label {
-              font-weight: 600;
-              color: #4F7C82;
-              font-size: 14px;
-            }
-            .detail-value {
-              color: #0B2E33;
-              font-weight: 500;
-              font-size: 14px;
-              text-align: right;
-            }
-            .status-badge {
-              background: #28a745;
-              color: white;
-              padding: 4px 12px;
-              border-radius: 20px;
-              font-size: 12px;
-              font-weight: 600;
-            }
-            .features {
-              background: #e8f4f8;
-              border-radius: 12px;
-              padding: 20px;
-              margin: 25px 0;
-              border-left: 4px solid #4F7C82;
-            }
-            .features h3 {
-              color: #0B2E33;
-              font-size: 18px;
-              margin-bottom: 15px;
-              display: flex;
-              align-items: center;
-              gap: 8px;
-            }
-            .features ul {
-              list-style: none;
-              padding: 0;
-            }
-            .features li {
-              padding: 6px 0;
-              color: #555;
-              font-size: 14px;
-              display: flex;
-              align-items: center;
-              gap: 8px;
-            }
-            .features li::before {
-              content: '✨';
-              font-size: 12px;
-            }
-            .cta-section {
-              text-align: center;
-              margin: 30px 0;
-            }
-            .cta-button {
-              display: inline-block;
-              background: linear-gradient(135deg, #0B2E33, #4F7C82);
-              color: white;
-              padding: 15px 35px;
-              text-decoration: none;
-              border-radius: 30px;
-              font-weight: 600;
-              font-size: 16px;
-              box-shadow: 0 8px 20px rgba(11, 46, 51, 0.3);
-              transition: all 0.3s ease;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-            }
-            .cta-button:hover {
-              transform: translateY(-2px);
-              box-shadow: 0 12px 25px rgba(11, 46, 51, 0.4);
-            }
-            .warning-box {
-              background: #fff3cd;
-              border: 1px solid #ffeaa7;
-              border-radius: 10px;
-              padding: 15px;
-              margin: 20px 0;
-              color: #856404;
-              font-size: 14px;
-            }
-            .footer {
-              background: #f8f9fa;
-              padding: 25px 20px;
-              text-align: center;
-              border-top: 1px solid #e0e0e0;
-            }
-            .footer p {
-              color: #666;
-              font-size: 12px;
-              margin: 5px 0;
-            }
-            .social-links {
-              margin: 15px 0;
-            }
-            .social-links a {
-              color: #4F7C82;
-              text-decoration: none;
-              margin: 0 10px;
-              font-size: 14px;
-            }
-            a { color: #0B5ED7; }
-            
-            /* Dark mode support for clients like iOS Mail */
-            @media (prefers-color-scheme: dark) {
-              body { background: #0b0e11 !important; color: #e6e6e6 !important; }
-              .email-container { background: #121417 !important; box-shadow: none !important; }
-              .header { background: linear-gradient(135deg, #0b2e33 0%, #27474b 100%) !important; }
-              .thank-you h1 { color: #d9f2f4 !important; }
-              .thank-you p { color: #c7d1d1 !important; }
-              .subscription-card { background: #1a1d21 !important; border-color: #2a2f36 !important; }
-              .card-title { color: #d9f2f4 !important; }
-              .detail-item { border-color: #2a2f36 !important; }
-              .detail-label { color: #9ccbd0 !important; }
-              .detail-value { color: #e6f4f1 !important; }
-              .features { background: #162127 !important; border-left-color: #4F7C82 !important; }
-              .features li { color: #cbd5d6 !important; }
-              .warning-box { background: #2a2412 !important; border-color: #5a4f2a !important; color: #ffeaa7 !important; }
-              .footer { background: #0f1114 !important; border-top-color: #23262b !important; }
-              .footer p { color: #a7b0b1 !important; }
-              .social-links a { color: #8bd0da !important; }
-            }
-            /* Outlook/Windows dark mode fallback */
-            [data-ogsc] .email-container { background: #121417 !important; }
-            [data-ogsc] .detail-value { color: #e6f4f1 !important; }
-            
-            /* Mobile Responsive */
-            @media (max-width: 600px) {
-              body {
-                padding: 5px;
-              }
-              .email-container {
-                border-radius: 15px;
-              }
-              .header {
-                padding: 25px 15px;
-              }
-              .logo {
-                font-size: 28px;
-              }
-              .tagline {
-                font-size: 14px;
-              }
-              .content {
-                padding: 20px 15px;
-              }
-              .thank-you h1 {
-                font-size: 24px;
-              }
-              .thank-you p {
-                font-size: 14px;
-              }
-              .subscription-card {
-                padding: 20px 15px;
-              }
-              .card-title {
-                font-size: 18px;
-              }
-              .detail-item {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 4px;
-              }
-              .detail-value {
-                text-align: left;
-                color: #0B2E33;
-              }
-              .cta-button {
-                padding: 12px 25px;
-                font-size: 14px;
-              }
-              .features {
-                padding: 15px;
-              }
-              .features h3 {
-                font-size: 16px;
-              }
-              .features li {
-                font-size: 13px;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="email-container">
-            <div class="header">
-              <div class="logo">Ansari Tools</div>
-              <p class="tagline">Premium Design Tools at Affordable Prices</p>
-            </div>
-            
-            <div class="content">
-              <div class="thank-you">
-                <h1>Thank You for Your Purchase! 🎉</h1>
-                <p>We're thrilled to have you as part of the Ansari Tools. Your Canva Pro subscription is now active and ready to use!</p>
-              </div>
-              
-              <div class="subscription-card" style="background:#ffffff; border:1px solid #e0e0e0;">
-                <div class="card-title">
-                  📋 Subscription Details
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>Your Canva Pro Subscription is Ready</title>
+  <style type="text/css">
+    :root {
+      color-scheme: light;
+      supported-color-schemes: light;
+    }
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+      background-color: #f4f5f8 !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Force pure white background in dark mode */
+    @media (prefers-color-scheme: dark) {
+      body, .email-bg {
+        background-color: #f4f5f8 !important;
+      }
+      .email-card {
+        background-color: #ffffff !important;
+      }
+      .heading-text {
+        color: #111827 !important;
+      }
+      .body-text {
+        color: #4b5563 !important;
+      }
+      .dark-card {
+        background-color: #1F1739 !important;
+      }
+      .light-card {
+        background-color: #f6f8fb !important;
+      }
+      .table-label {
+        color: #6b7280 !important;
+      }
+      .table-val {
+        color: #111827 !important;
+      }
+    }
+    [data-ogsc] .email-card {
+      background-color: #ffffff !important;
+    }
+    [data-ogsc] .heading-text {
+      color: #111827 !important;
+    }
+  </style>
+</head>
+<body class="email-bg" style="margin: 0; padding: 24px 10px; background-color: #f4f5f8;">
+  <center style="width: 100%; background-color: #f4f5f8;">
+    <!-- Container Table -->
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto;">
+      <tr>
+        <td class="email-card" style="background-color: #ffffff; border-radius: 18px; padding: 36px 32px 32px 32px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); text-align: left;">
+          
+          <!-- Top Header: Brand Logo -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 28px;">
+            <tr>
+              <td align="left" style="vertical-align: middle;">
+                <a href="https://ansaritools.com" target="_blank" style="text-decoration: none; display: inline-block;">
+                  <img src="cid:ansari-logo-black" alt="Ansari Tools" width="160" height="64" style="display: block; width: 160px; max-width: 160px; height: auto; border: 0;" />
+                </a>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Main Headline (Hostinger style) -->
+          <h1 class="heading-text" style="margin: 0 0 16px 0; font-size: 28px; line-height: 1.25; font-weight: 700; color: #111827; letter-spacing: -0.5px;">
+            Your Canva Pro subscription is ready – you’re all set to create
+          </h1>
+
+          <!-- Lead Paragraph -->
+          <p class="body-text" style="margin: 0 0 24px 0; font-size: 15px; line-height: 1.6; color: #4b5563;">
+            Thank you for choosing Ansari Tools! We’ve successfully provisioned your official Canva Pro subscription on your email. You can now unlock premium templates, brand kits, background remover, and all pro design features.
+          </p>
+
+          <!-- Signature Hostinger Dark Card -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="dark-card" style="background-color: #1F1739; border-radius: 16px; margin: 0 0 28px 0;">
+            <tr>
+              <td style="padding: 28px 24px; text-align: left;">
+                
+                <div style="font-size: 20px; font-weight: 700; color: #ffffff; line-height: 1.3; margin-bottom: 6px;">
+                  Canva Pro Subscription
                 </div>
-                <div class="detail-grid">
-                  <div class="detail-item">
-                    <span class="detail-label">Email Address :&nbsp;</span>
-                    <span class="detail-value" style="color:#0B2E33;">${email}</span>
-                  </div>
-                  <div class="detail-item">
-                    <span class="detail-label">Duration :&nbsp;</span>
-                    <span class="detail-value" style="color:#0B2E33;">${duration}</span>
-                  </div>
-                  <div class="detail-item">
-                    <span class="detail-label">Start Date :&nbsp;</span>
-                    <span class="detail-value" style="color:#0B2E33;">${new Date(subscriptionDate).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      })}</span>
-                  </div>
-                  <div class="detail-item">
-                    <span class="detail-label">Expiry Date :&nbsp;</span>
-                    <span class="detail-value" style="color:#0B2E33;">${expiryDate.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      })}</span>
-                  </div>
-                  <div class="detail-item">
-                    <span class="detail-label">Status :&nbsp;</span>
-                    <span class="detail-value">
-                      <span class="status-badge"> ✅ Active</span>
-                    </span>
-                  </div>
+                
+                <div style="font-size: 14px; color: #d1c7f7; margin-bottom: 22px;">
+                  Active for <strong style="color: #ffffff;">${duration}</strong> • Full Pro Team Access
                 </div>
-              </div>
-              
-              <div class="warning-box">
-                <strong>📌 Important:</strong> Please keep this email safe as it contains your subscription details. If you have any questions or need support, don't hesitate to contact us on WhatsApp:
-                <div style="text-align: center; margin-top: 15px;">
-                  <a href="https://wa.me/923227866655" style="display: inline-block; background: #25D366; color: white; padding: 8px 16px; border-radius: 20px; text-decoration: none; font-size: 14px; font-weight: 600; box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3); transition: all 0.3s ease;">
-                    💬 WhatsApp Support
-                  </a>
+
+                <!-- CTA Button -->
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="border-radius: 12px; background-color: #6C5CE7;">
+                      <a href="https://www.canva.com" target="_blank" style="background-color: #6C5CE7; border: 1px solid #6C5CE7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; font-weight: 600; color: #ffffff !important; text-decoration: none; padding: 13px 28px; border-radius: 12px; display: inline-block;">
+                        Open Canva Account
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Warranty Sub-note -->
+                <div style="margin-top: 20px; font-size: 13px; line-height: 1.5; color: #b8afdc;">
+                  ✓ Includes <strong>100% replacement warranty</strong> &amp; dedicated WhatsApp support throughout your entire ${duration} plan.
                 </div>
-              </div>
-              
-              <div style="text-align: center; margin: 30px 0; padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                <p style="color: #0B2E33; font-size: 16px; font-weight: 600; margin-bottom: 10px;">
-                  Thank you for choosing Ansari Tools!
-                </p>
-                <p style="color: #666; font-size: 14px;">
-                  We're excited to help you create amazing designs and grow your business with our premium tools.
-                </p>
-              </div>
-              
-              <p style="text-align: center; color: #0B2E33; font-weight: 600; margin: 20px 0;">
-                Best regards,<br>
-                <span style="color: #4F7C82;">The Ansari Tools Team</span>
-              </p>
-            </div>
-            
-            <div class="footer">
-              <div class="social-links">
-                <a href="#">Website</a> • 
-                <a href="#">Support</a> • 
-                <a href="#">Contact</a>
-              </div>
-              <p>This email was sent to ${email} because you have an active Canva Pro subscription with Ansari Tools.</p>
-              <p>© 2024 Ansari Tools. All rights reserved.</p>
-            </div>
+
+              </td>
+            </tr>
+          </table>
+
+          <!-- Subscription Details Heading -->
+          <div class="heading-text" style="font-size: 16px; font-weight: 700; color: #111827; margin: 0 0 12px 0;">
+            Subscription Summary &amp; Order Details:
           </div>
-        </body>
-        </html>
+
+          <!-- Light Details Card (Hostinger style) -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="light-card" style="background-color: #f6f8fb; border-radius: 14px; margin: 0 0 24px 0; border: 1px solid #eef2f6;">
+            <tr>
+              <td style="padding: 20px 22px;">
+                
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td class="table-label" style="padding: 8px 0; font-size: 13px; color: #6b7280; border-bottom: 1px solid #e5e7eb;">Registered Email:</td>
+                    <td class="table-val" align="right" style="padding: 8px 0; font-size: 13px; font-weight: 600; color: #111827; border-bottom: 1px solid #e5e7eb;">${email}</td>
+                  </tr>
+                  <tr>
+                    <td class="table-label" style="padding: 8px 0; font-size: 13px; color: #6b7280; border-bottom: 1px solid #e5e7eb;">Plan Duration:</td>
+                    <td class="table-val" align="right" style="padding: 8px 0; font-size: 13px; font-weight: 600; color: #111827; border-bottom: 1px solid #e5e7eb;">${duration}</td>
+                  </tr>
+                  <tr>
+                    <td class="table-label" style="padding: 8px 0; font-size: 13px; color: #6b7280; border-bottom: 1px solid #e5e7eb;">Start Date:</td>
+                    <td class="table-val" align="right" style="padding: 8px 0; font-size: 13px; font-weight: 600; color: #111827; border-bottom: 1px solid #e5e7eb;">${formattedStartDate}</td>
+                  </tr>
+                  <tr>
+                    <td class="table-label" style="padding: 8px 0; font-size: 13px; color: #6b7280; border-bottom: 1px solid #e5e7eb;">Expiry Date:</td>
+                    <td class="table-val" align="right" style="padding: 8px 0; font-size: 13px; font-weight: 600; color: #111827; border-bottom: 1px solid #e5e7eb;">${formattedExpiryDate}</td>
+                  </tr>
+                  <tr>
+                    <td class="table-label" style="padding: 8px 0 0 0; font-size: 13px; color: #6b7280;">Status:</td>
+                    <td align="right" style="padding: 8px 0 0 0;">
+                      <span style="display: inline-block; background-color: #dcfce7; color: #15803d; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">
+                        ● Active &amp; Verified
+                      </span>
+                    </td>
+                  </tr>
+                </table>
+
+              </td>
+            </tr>
+          </table>
+
+          <!-- Customer Support Card -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="light-card" style="background-color: #f6f8fb; border-radius: 14px; margin: 0 0 28px 0; border: 1px solid #eef2f6;">
+            <tr>
+              <td style="padding: 20px 22px;">
+                <div style="font-size: 14px; font-weight: 700; color: #111827; margin-bottom: 6px;">
+                  Need support or have warranty questions?
+                </div>
+                <p style="margin: 0 0 14px 0; font-size: 13px; line-height: 1.5; color: #4b5563;">
+                  Our official customer care team is available directly on WhatsApp. Simply message us with your email address for instant assistance or re-invites.
+                </p>
+                <a href="https://wa.me/923227866655" target="_blank" style="display: inline-block; background-color: #25D366; color: #ffffff !important; font-size: 13px; font-weight: 600; text-decoration: none; padding: 9px 20px; border-radius: 10px;">
+                  💬 WhatsApp Support (0322 7866655)
+                </a>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Clean Divider -->
+          <div style="border-top: 1px solid #e5e7eb; margin: 28px 0 24px 0;"></div>
+
+          <!-- Footer (Hostinger Style) -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td align="left">
+                <!-- Grey Logo in Footer -->
+                <div style="margin-bottom: 16px;">
+                  <img src="cid:ansari-logo-grey" alt="Ansari Tools" width="130" height="52" style="display: block; width: 130px; max-width: 130px; height: auto; border: 0;" />
+                </div>
+                
+                <p style="margin: 0 0 14px 0; font-size: 12px; line-height: 1.6; color: #6b7280;">
+                  You have received this email as you are a registered customer at Ansari Tools with an active Canva Pro plan.
+                </p>
+
+                <!-- Navigation Links -->
+                <div style="margin: 0 0 14px 0; font-size: 12px; color: #6b7280;">
+                  <a href="https://wa.me/923227866655" target="_blank" style="color: #4b5563; font-weight: 600; text-decoration: none; margin-right: 14px;">WhatsApp</a>
+                  <a href="https://ansaritools.com" target="_blank" style="color: #4b5563; font-weight: 600; text-decoration: none; margin-right: 14px;">Website</a>
+                  <a href="https://ansaritools.com/contact" target="_blank" style="color: #4b5563; font-weight: 600; text-decoration: none; margin-right: 14px;">Help Center</a>
+                  <a href="https://ansaritools.com" target="_blank" style="color: #4b5563; font-weight: 600; text-decoration: none;">Privacy Policy</a>
+                </div>
+
+                <!-- Copyright -->
+                <p style="margin: 0; font-size: 11px; color: #9ca3af;">
+                  &copy; 2024-${new Date().getFullYear()} Ansari Tools International. All rights reserved.
+                </p>
+              </td>
+            </tr>
+          </table>
+
+        </td>
+      </tr>
+    </table>
+  </center>
+</body>
+</html>
       `
     };
 
     const result = await transporter.sendMail(mailOptions);
-    console.log('Email sent successfully:', result.messageId);
+    console.log('✅ Canva subscription email sent successfully:', result.messageId);
     return { success: true, messageId: result.messageId };
 
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('❌ Error sending Canva subscription email:', error);
     return { success: false, error: error.message };
   }
 };
 
-// Send general notification email
+/**
+ * 2. Send custom broadcast notification email to subscribers (Hostinger-inspired design)
+ */
+const sendBroadcastEmail = async ({
+  email,
+  duration = 'Canva Pro',
+  subject = 'Ansari Tools: Customer Support & Official WhatsApp Update',
+  customMessage = '',
+  newWhatsApp = '+92 322 7866655',
+  newWhatsAppDisplay = '0322 7866655'
+}) => {
+  try {
+    const transporter = createTransporter();
+    const cleanWhatsAppDigits = (newWhatsApp || '923227866655').replace(/[^0-9]/g, '');
+
+    const whatsappUrl = `https://wa.me/${cleanWhatsAppDigits}`;
+    const telUrl = `tel:+${cleanWhatsAppDigits}`;
+
+    const cleanSubject = (subject || 'Ansari Tools: Customer Support & Official WhatsApp Update')
+      .replace(/[🚨🔥⚠️‼️]/g, '')
+      .trim();
+
+    // Format plain text lines to elegant paragraphs
+    const formattedHtmlMessage = customMessage
+      ? customMessage
+          .split('\n\n')
+          .map(paragraph => `<p class="body-text" style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #4b5563;">${paragraph.replace(/\n/g, '<br/>')}</p>`)
+          .join('')
+      : `
+        <p class="body-text" style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #4b5563;">
+          Assalam-o-Alaikum / Hello Valued Customer,
+        </p>
+        <p class="body-text" style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #4b5563;">
+          This official notice is to inform you that the official customer support and inquiry WhatsApp number for <strong>Ansari Tools</strong> has been updated.
+        </p>
+        <p class="body-text" style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #4b5563;">
+          For all future Canva subscriptions, renewal discounts, technical queries, and instant warranty replacements, please contact our team exclusively on our new number.
+        </p>
+      `;
+
+    const mailOptions = {
+      from: {
+        name: 'Ansari Tools',
+        address: process.env.EMAIL_USER
+      },
+      to: email,
+      subject: cleanSubject,
+      headers: {
+        'X-Priority': '1',
+        'X-MSMail-Priority': 'High',
+        'Importance': 'high',
+        'X-Mailer': 'Ansari Tools Email Service'
+      },
+      attachments: getLogoAttachments(),
+      html: `
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>${cleanSubject}</title>
+  <style type="text/css">
+    :root {
+      color-scheme: light;
+      supported-color-schemes: light;
+    }
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+      background-color: #f4f5f8 !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Force white container across dark modes (Hostinger style) */
+    @media (prefers-color-scheme: dark) {
+      body, .email-bg {
+        background-color: #f4f5f8 !important;
+      }
+      .email-card {
+        background-color: #ffffff !important;
+      }
+      .heading-text {
+        color: #111827 !important;
+      }
+      .body-text {
+        color: #4b5563 !important;
+      }
+      .dark-card {
+        background-color: #1F1739 !important;
+      }
+      .light-card {
+        background-color: #f6f8fb !important;
+      }
+    }
+    [data-ogsc] .email-card {
+      background-color: #ffffff !important;
+    }
+    [data-ogsc] .heading-text {
+      color: #111827 !important;
+    }
+  </style>
+</head>
+<body class="email-bg" style="margin: 0; padding: 24px 10px; background-color: #f4f5f8;">
+  <center style="width: 100%; background-color: #f4f5f8;">
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto;">
+      <tr>
+        <td class="email-card" style="background-color: #ffffff; border-radius: 18px; padding: 36px 32px 32px 32px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); text-align: left;">
+          
+          <!-- Top Header: Brand Logo -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 28px;">
+            <tr>
+              <td align="left" style="vertical-align: middle;">
+                <a href="https://ansaritools.com" target="_blank" style="text-decoration: none; display: inline-block;">
+                  <img src="cid:ansari-logo-black" alt="Ansari Tools" width="160" height="64" style="display: block; width: 160px; max-width: 160px; height: auto; border: 0;" />
+                </a>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Main Headline (Hostinger style) -->
+          <h1 class="heading-text" style="margin: 0 0 16px 0; font-size: 28px; line-height: 1.25; font-weight: 700; color: #111827; letter-spacing: -0.5px;">
+            Official Support Notice – you’re just a message away
+          </h1>
+
+          <!-- Formatted Content Message -->
+          <div style="margin-bottom: 24px;">
+            ${formattedHtmlMessage}
+          </div>
+
+          <!-- Signature Hostinger Dark Card -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="dark-card" style="background-color: #1F1739; border-radius: 16px; margin: 0 0 28px 0;">
+            <tr>
+              <td style="padding: 28px 24px; text-align: left;">
+                
+                <div style="font-size: 20px; font-weight: 700; color: #ffffff; line-height: 1.3; margin-bottom: 6px;">
+                  New Official WhatsApp Support
+                </div>
+                
+                <div style="font-size: 16px; font-weight: 600; color: #d1c7f7; margin-bottom: 22px;">
+                  <a href="${telUrl}" style="color: #d1c7f7; text-decoration: none;">${newWhatsAppDisplay || newWhatsApp}</a>
+                </div>
+
+                <!-- CTA Button (Hostinger Purple Button) -->
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="border-radius: 12px; background-color: #6C5CE7;">
+                      <a href="${whatsappUrl}" target="_blank" style="background-color: #6C5CE7; border: 1px solid #6C5CE7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; font-weight: 600; color: #ffffff !important; text-decoration: none; padding: 13px 28px; border-radius: 12px; display: inline-block;">
+                        Message on WhatsApp
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Sub-note inside dark card -->
+                <div style="margin-top: 20px; font-size: 13px; line-height: 1.5; color: #b8afdc;">
+                  Please save <strong>${newWhatsAppDisplay || newWhatsApp}</strong> in your phone contacts as <strong>"Ansari Tools"</strong> for instant warranty assistance.
+                </div>
+
+              </td>
+            </tr>
+          </table>
+
+          <!-- Important Subscriber Notes Card (Hostinger Light Card Style) -->
+          <div class="heading-text" style="font-size: 16px; font-weight: 700; color: #111827; margin: 0 0 12px 0;">
+            Important Subscriber Guidelines:
+          </div>
+
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="light-card" style="background-color: #f6f8fb; border-radius: 14px; margin: 0 0 24px 0; border: 1px solid #eef2f6;">
+            <tr>
+              <td style="padding: 20px 22px;">
+                
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="padding: 6px 0; font-size: 13px; line-height: 1.5; color: #374151;">
+                      <strong style="color: #111827;">📌 Warranty Claims:</strong> Simply text your registered email address (<span style="color: #6C5CE7; font-weight: 600;">${email}</span>) to our new WhatsApp number for fast warranty re-invites.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; font-size: 13px; line-height: 1.5; color: #374151;">
+                      <strong style="color: #111827;">🎁 Renewal Deals:</strong> Get lowest discounted rates when renewing your Canva Pro, ChatGPT, and other digital tools through our WhatsApp.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; font-size: 13px; line-height: 1.5; color: #374151;">
+                      <strong style="color: #111827;">⚡ Fast Response:</strong> Dedicated support replies within minutes during business hours.
+                    </td>
+                  </tr>
+                </table>
+
+              </td>
+            </tr>
+          </table>
+
+          <!-- Subscriber Metadata pill box -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fafbfc; border-radius: 10px; border: 1px solid #f1f3f5; margin-bottom: 28px;">
+            <tr>
+              <td style="padding: 12px 16px; font-size: 12px; color: #6b7280;">
+                <span style="font-weight: 600; color: #374151;">Recipient:</span> ${email}
+                <span style="float: right;"><span style="font-weight: 600; color: #374151;">Plan:</span> ${duration}</span>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Clean Divider -->
+          <div style="border-top: 1px solid #e5e7eb; margin: 28px 0 24px 0;"></div>
+
+          <!-- Footer (Hostinger Style) -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td align="left">
+                <!-- Grey Logo in Footer -->
+                <div style="margin-bottom: 16px;">
+                  <img src="cid:ansari-logo-grey" alt="Ansari Tools" width="130" height="52" style="display: block; width: 130px; max-width: 130px; height: auto; border: 0;" />
+                </div>
+                
+                <p style="margin: 0 0 14px 0; font-size: 12px; line-height: 1.6; color: #6b7280;">
+                  You have received this email as you are a registered customer at Ansari Tools. For queries, contact support@ansaritools.com.
+                </p>
+
+                <!-- Navigation Links -->
+                <div style="margin: 0 0 14px 0; font-size: 12px; color: #6b7280;">
+                  <a href="${whatsappUrl}" target="_blank" style="color: #4b5563; font-weight: 600; text-decoration: none; margin-right: 14px;">WhatsApp</a>
+                  <a href="https://ansaritools.com" target="_blank" style="color: #4b5563; font-weight: 600; text-decoration: none; margin-right: 14px;">Official Website</a>
+                  <a href="https://ansaritools.com/contact" target="_blank" style="color: #4b5563; font-weight: 600; text-decoration: none; margin-right: 14px;">Help Center</a>
+                  <a href="https://ansaritools.com" target="_blank" style="color: #4b5563; font-weight: 600; text-decoration: none;">Privacy Policy</a>
+                </div>
+
+                <!-- Copyright -->
+                <p style="margin: 0; font-size: 11px; color: #9ca3af;">
+                  &copy; 2024-${new Date().getFullYear()} Ansari Tools International. All rights reserved.
+                </p>
+              </td>
+            </tr>
+          </table>
+
+        </td>
+      </tr>
+    </table>
+  </center>
+</body>
+</html>
+      `
+    };
+
+    const result = await transporter.sendMail(mailOptions);
+    console.log('✅ Broadcast email sent successfully to', email, 'MessageId:', result.messageId);
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error('❌ Error in sendBroadcastEmail for', email, error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * 3. Send general notification email (Hostinger style)
+ */
 const sendNotificationEmail = async (email, subject, message) => {
   try {
     const transporter = createTransporter();
@@ -457,85 +615,66 @@ const sendNotificationEmail = async (email, subject, message) => {
       },
       to: email,
       subject: subject,
+      attachments: getLogoAttachments(),
       html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>${subject}</title>
-          <style>
-            body {
-              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-              line-height: 1.6;
-              color: #333;
-              max-width: 600px;
-              margin: 0 auto;
-              padding: 20px;
-              background-color: #f4f4f4;
-            }
-            .container {
-              background: white;
-              border-radius: 10px;
-              padding: 30px;
-              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            }
-            .header {
-              text-align: center;
-              margin-bottom: 30px;
-              padding-bottom: 20px;
-              border-bottom: 2px solid #0B2E33;
-            }
-            .logo {
-              font-size: 28px;
-              font-weight: bold;
-              color: #0B2E33;
-              margin-bottom: 10px;
-            }
-            .content {
-              margin-bottom: 30px;
-            }
-            .footer {
-              text-align: center;
-              margin-top: 30px;
-              padding-top: 20px;
-              border-top: 1px solid #eee;
-              color: #666;
-              font-size: 14px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <div class="logo">🎨 Ansari Tools</div>
-              <p style="color: #4F7C82; font-size: 18px; margin: 0;">Premium Design Tools at Affordable Prices</p>
-            </div>
-            
-            <div class="content">
-              ${message}
-            </div>
-            
-            <div class="footer">
-              <p>© 2024 Ansari Tools. All rights reserved.</p>
-            </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>${subject}</title>
+</head>
+<body style="margin: 0; padding: 24px 10px; background-color: #f4f5f8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <center>
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 18px; padding: 36px 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); text-align: left;">
+      <tr>
+        <td>
+          <div style="margin-bottom: 24px;">
+            <img src="cid:ansari-logo-black" alt="Ansari Tools" width="160" height="64" style="display: block; width: 160px; height: auto; border: 0;" />
           </div>
-        </body>
-        </html>
+          <h2 style="font-size: 24px; font-weight: 700; color: #111827; margin: 0 0 16px 0;">${subject}</h2>
+          <div style="font-size: 15px; line-height: 1.6; color: #4b5563; margin-bottom: 24px;">
+            ${message}
+          </div>
+          <div style="border-top: 1px solid #e5e7eb; padding-top: 20px; font-size: 12px; color: #9ca3af;">
+            &copy; 2024-${new Date().getFullYear()} Ansari Tools. All rights reserved.
+          </div>
+        </td>
+      </tr>
+    </table>
+  </center>
+</body>
+</html>
       `
     };
 
     const result = await transporter.sendMail(mailOptions);
-    console.log('Email sent successfully:', result.messageId);
     return { success: true, messageId: result.messageId };
-
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('Error sending notification email:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * 4. Verify SMTP connection
+ */
+const verifyEmailConnection = async () => {
+  try {
+    const transporter = createTransporter();
+    await transporter.verify();
+    return { success: true, message: 'SMTP connection verified successfully' };
+  } catch (error) {
+    console.error('SMTP Verification Error:', error);
     return { success: false, error: error.message };
   }
 };
 
 module.exports = {
   sendCanvaSubscriptionEmail,
-  sendNotificationEmail
+  sendNotificationEmail,
+  sendBroadcastEmail,
+  verifyEmailConnection
 };
