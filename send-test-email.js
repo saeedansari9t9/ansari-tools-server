@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { sendBroadcastEmail } = require('./utils/emailService');
+const mongoose = require('mongoose');
 
 const targetEmail = process.argv[2];
 
@@ -9,9 +10,18 @@ if (!targetEmail) {
 }
 
 async function run() {
+  if (process.env.MONGODB_URI) {
+    try {
+      await mongoose.connect(process.env.MONGODB_URI);
+    } catch (e) {
+      console.warn('DB connect warning:', e.message);
+    }
+  }
+
   console.log(`Sending test email from ${process.env.EMAIL_USER} to ${targetEmail}...`);
   const result = await sendBroadcastEmail({
     email: targetEmail,
+    heading: 'Official Support Notice – you’re just a message away',
     duration: '1 Year (Test)',
     subject: 'Ansari Tools: Customer Support & Official WhatsApp Update',
     customMessage: 'Yeh ek test email hai Ansari Tools ke new official domain email (support@ansaritools.com) se.\n\nAap check kar sakte hain ke email direct Inbox me aayi hai ya nahi.',
@@ -24,6 +34,10 @@ async function run() {
     console.log(`Apne inbox (${targetEmail}) me check karein.`);
   } else {
     console.error('FAILED: Error sending email:', result.error);
+  }
+
+  if (mongoose.connection.readyState === 1) {
+    await mongoose.disconnect();
   }
 }
 

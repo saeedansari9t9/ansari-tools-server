@@ -1,30 +1,24 @@
 const nodemailer = require('nodemailer');
 const path = require('path');
 const fs = require('fs');
+const mongoose = require('mongoose');
+const CanvaSubscription = require('../models/CanvaSubscription');
+const BroadcastConfig = require('../models/BroadcastConfig');
 
-// Path to official assets
-const ASSETS_DIR = path.join(__dirname, '..', 'assets');
-const BLACK_LOGO_PATH = path.join(ASSETS_DIR, 'Ansari Tools Logo Black.png');
-const GREY_LOGO_PATH = path.join(ASSETS_DIR, 'Ansari Tools Logo Grey.png');
+// Official hosted brand logo CDN URLs (hosted on Cloudinary CDN for instant loading & zero attachment badges in Gmail)
+const PURPLE_LOGO_URL = 'https://res.cloudinary.com/dxqzwplkg/image/upload/v1792395635/email_assets/ansari_tools_logo_purple.png';
+const GREY_LOGO_URL = 'https://res.cloudinary.com/dxqzwplkg/image/upload/v1792395636/email_assets/ansari_tools_logo_grey.png';
 
-// Helper to get standard CID attachments for logos
-const getLogoAttachments = () => {
-  const attachments = [];
-  if (fs.existsSync(BLACK_LOGO_PATH)) {
-    attachments.push({
-      filename: 'ansari-tools-black.png',
-      path: BLACK_LOGO_PATH,
-      cid: 'ansari-logo-black'
-    });
+// Helper to encode email subject lines using RFC 2047 Base64 to prevent emojis (e.g. 📢, 📞, ⚡, 🔥)
+// and Unicode characters from being corrupted by SMTP servers into black diamond question marks ()
+const encodeSubjectHeader = (text) => {
+  if (!text) return '';
+  const trimmed = String(text).trim();
+  if (trimmed.startsWith('=?UTF-8?')) return trimmed;
+  if (/[^\u0000-\u007F]/.test(trimmed)) {
+    return '=?UTF-8?B?' + Buffer.from(trimmed, 'utf-8').toString('base64') + '?=';
   }
-  if (fs.existsSync(GREY_LOGO_PATH)) {
-    attachments.push({
-      filename: 'ansari-tools-grey.png',
-      path: GREY_LOGO_PATH,
-      cid: 'ansari-logo-grey'
-    });
-  }
-  return attachments;
+  return trimmed;
 };
 
 // Create transporter using SMTP (supports Namecheap Private Email and Gmail)
@@ -44,8 +38,8 @@ const createTransporter = () => {
   // Namecheap Private Email / Custom SMTP
   const host = process.env.EMAIL_HOST || 'mail.privateemail.com';
   const port = parseInt(process.env.EMAIL_PORT, 10) || 465;
-  const secure = process.env.EMAIL_SECURE !== undefined 
-    ? process.env.EMAIL_SECURE === 'true' 
+  const secure = process.env.EMAIL_SECURE !== undefined
+    ? process.env.EMAIL_SECURE === 'true'
     : (port === 465);
 
   return nodemailer.createTransport({
@@ -102,14 +96,13 @@ const sendCanvaSubscriptionEmail = async (email, duration = '1 Year', subscripti
         address: process.env.EMAIL_USER
       },
       to: email,
-      subject: 'Your Canva Pro Subscription is Ready – Ansari Tools',
+      subject: encodeSubjectHeader('Your Canva Pro Subscription is Ready – Ansari Tools'),
       headers: {
         'X-Priority': '1',
         'X-MSMail-Priority': 'High',
         'Importance': 'high',
         'X-Mailer': 'Ansari Tools Email Service'
       },
-      attachments: getLogoAttachments(),
       html: `
 <!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -132,14 +125,14 @@ const sendCanvaSubscriptionEmail = async (email, duration = '1 Year', subscripti
       margin: 0 !important;
       padding: 0 !important;
       width: 100% !important;
-      background-color: #f4f5f8 !important;
+      background-color: #ffffffff !important;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       -webkit-font-smoothing: antialiased;
     }
     /* Force pure white background in dark mode */
     @media (prefers-color-scheme: dark) {
       body, .email-bg {
-        background-color: #f4f5f8 !important;
+        background-color: #ffffffff !important;
       }
       .email-card {
         background-color: #ffffff !important;
@@ -171,19 +164,19 @@ const sendCanvaSubscriptionEmail = async (email, duration = '1 Year', subscripti
     }
   </style>
 </head>
-<body class="email-bg" style="margin: 0; padding: 24px 10px; background-color: #f4f5f8;">
-  <center style="width: 100%; background-color: #f4f5f8;">
+<body class="email-bg" style="margin: 0; padding: 24px 10px; background-color: #ffffffff;">
+  <center style="width: 100%; background-color: #ffffffff;">
     <!-- Container Table -->
     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto;">
       <tr>
-        <td class="email-card" style="background-color: #ffffff; border-radius: 18px; padding: 36px 32px 32px 32px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); text-align: left;">
+        <td class="email-card" style="background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 18px; padding: 36px 32px 32px 32px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); text-align: left;">
           
           <!-- Top Header: Brand Logo -->
           <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 28px;">
             <tr>
-              <td align="left" style="vertical-align: middle;">
+              <td align="center" style="vertical-align: middle; text-align: center;">
                 <a href="https://ansaritools.com" target="_blank" style="text-decoration: none; display: inline-block;">
-                  <img src="cid:ansari-logo-black" alt="Ansari Tools" width="160" height="64" style="display: block; width: 160px; max-width: 160px; height: auto; border: 0;" />
+                  <img src="${PURPLE_LOGO_URL}" alt="Ansari Tools" width="160" height="64" style="display: block; margin: 0 auto; width: 160px; max-width: 160px; height: auto; border: 0;" />
                 </a>
               </td>
             </tr>
@@ -299,7 +292,7 @@ const sendCanvaSubscriptionEmail = async (email, duration = '1 Year', subscripti
               <td align="left">
                 <!-- Grey Logo in Footer -->
                 <div style="margin-bottom: 16px;">
-                  <img src="cid:ansari-logo-grey" alt="Ansari Tools" width="130" height="52" style="display: block; width: 130px; max-width: 130px; height: auto; border: 0;" />
+                  <img src="${GREY_LOGO_URL}" alt="Ansari Tools" width="130" height="52" style="display: block; width: 130px; max-width: 130px; height: auto; border: 0;" />
                 </div>
                 
                 <p style="margin: 0 0 14px 0; font-size: 12px; line-height: 1.6; color: #6b7280;">
@@ -346,7 +339,10 @@ const sendCanvaSubscriptionEmail = async (email, duration = '1 Year', subscripti
  */
 const sendBroadcastEmail = async ({
   email,
-  duration = 'Canva Pro',
+  duration,
+  subscriptionDate,
+  subscriptionStatus,
+  heading,
   subject = 'Ansari Tools: Customer Support & Official WhatsApp Update',
   customMessage = '',
   newWhatsApp = '+92 322 7866655',
@@ -359,16 +355,83 @@ const sendBroadcastEmail = async ({
     const whatsappUrl = `https://wa.me/${cleanWhatsAppDigits}`;
     const telUrl = `tel:+${cleanWhatsAppDigits}`;
 
-    const cleanSubject = (subject || 'Ansari Tools: Customer Support & Official WhatsApp Update')
-      .replace(/[🚨🔥⚠️‼️]/g, '')
-      .trim();
+    // If heading, subject, or customMessage are not passed, load saved config from DB
+    let savedConfig = null;
+    if ((!heading || !customMessage || !subject) && mongoose.connection.readyState === 1) {
+      try {
+        savedConfig = await BroadcastConfig.findOne({ key: 'default' }).lean();
+      } catch (err) {
+        console.warn('Could not query BroadcastConfig:', err.message);
+      }
+    }
+
+    const cleanSubject = ((subject && subject.trim()) || savedConfig?.subject || 'Ansari Tools: Customer Support & Official WhatsApp Update').trim();
+
+    const cleanHeading = (heading && heading.trim())
+      || savedConfig?.heading
+      || 'Official Support Notice – you’re just a message away';
+
+    const finalMessage = (customMessage && customMessage.trim()) !== undefined && customMessage.trim() !== ''
+      ? customMessage
+      : (savedConfig?.customMessage || '');
+
+    // Lookup subscriber details if not explicitly passed
+    let actualDuration = duration;
+    let actualDate = subscriptionDate;
+    let actualStatus = subscriptionStatus;
+
+    if ((!actualDate || !actualStatus || !actualDuration) && mongoose.connection.readyState === 1) {
+      try {
+        const found = await CanvaSubscription.findOne({ email: email.toLowerCase().trim() })
+          .sort({ date: -1 })
+          .lean();
+        if (found) {
+          if (!actualDuration) actualDuration = found.duration;
+          if (!actualDate) actualDate = found.date;
+          if (!actualStatus) actualStatus = found.status;
+        }
+      } catch (err) {
+        console.warn('Could not query CanvaSubscription for', email, err.message);
+      }
+    }
+
+    if (actualDuration) {
+      actualDuration = String(actualDuration).replace(/\s*\(Sample\)/gi, '').trim();
+    }
+    actualDuration = actualDuration || '1 Year';
+    actualStatus = actualStatus || 'active';
+
+    // Calculate expiry date & remaining days based on plan
+    const startDate = actualDate ? new Date(actualDate) : new Date();
+    const expiryDate = new Date(startDate);
+    const durLower = String(actualDuration).toLowerCase();
+    if (durLower.includes('1 month')) {
+      expiryDate.setMonth(expiryDate.getMonth() + 1);
+    } else if (durLower.includes('3 month')) {
+      expiryDate.setMonth(expiryDate.getMonth() + 3);
+    } else if (durLower.includes('6 month')) {
+      expiryDate.setMonth(expiryDate.getMonth() + 6);
+    } else {
+      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+    }
+
+    const now = new Date();
+    const diffMs = expiryDate.getTime() - now.getTime();
+    const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    const isExpired = actualStatus === 'expired' || daysRemaining <= 0;
+
+    const formattedExpiryDate = expiryDate.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
 
     // Format plain text lines to elegant paragraphs
-    const formattedHtmlMessage = customMessage
-      ? customMessage
-          .split('\n\n')
-          .map(paragraph => `<p class="body-text" style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #4b5563;">${paragraph.replace(/\n/g, '<br/>')}</p>`)
-          .join('')
+    const formattedHtmlMessage = finalMessage
+      ? finalMessage
+        .split('\n\n')
+        .map(paragraph => `<p class="body-text" style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #4b5563;">${paragraph.replace(/\n/g, '<br/>')}</p>`)
+        .join('')
       : `
         <p class="body-text" style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #4b5563;">
           Assalam-o-Alaikum / Hello Valued Customer,
@@ -387,14 +450,13 @@ const sendBroadcastEmail = async ({
         address: process.env.EMAIL_USER
       },
       to: email,
-      subject: cleanSubject,
+      subject: encodeSubjectHeader(cleanSubject),
       headers: {
         'X-Priority': '1',
         'X-MSMail-Priority': 'High',
         'Importance': 'high',
         'X-Mailer': 'Ansari Tools Email Service'
       },
-      attachments: getLogoAttachments(),
       html: `
 <!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -417,14 +479,14 @@ const sendBroadcastEmail = async ({
       margin: 0 !important;
       padding: 0 !important;
       width: 100% !important;
-      background-color: #f4f5f8 !important;
+      background-color: #ffffffff !important;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       -webkit-font-smoothing: antialiased;
     }
     /* Force white container across dark modes (Hostinger style) */
     @media (prefers-color-scheme: dark) {
       body, .email-bg {
-        background-color: #f4f5f8 !important;
+        background-color: #ffffffff !important;
       }
       .email-card {
         background-color: #ffffff !important;
@@ -450,26 +512,26 @@ const sendBroadcastEmail = async ({
     }
   </style>
 </head>
-<body class="email-bg" style="margin: 0; padding: 24px 10px; background-color: #f4f5f8;">
-  <center style="width: 100%; background-color: #f4f5f8;">
+<body class="email-bg" style="margin: 0; padding: 24px 10px; background-color: #ffffffff;">
+  <center style="width: 100%; background-color: #ffffffff;">
     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto;">
       <tr>
-        <td class="email-card" style="background-color: #ffffff; border-radius: 18px; padding: 36px 32px 32px 32px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); text-align: left;">
+        <td class="email-card" style="background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 18px; padding: 36px 32px 32px 32px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); text-align: left;">
           
           <!-- Top Header: Brand Logo -->
           <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 28px;">
             <tr>
-              <td align="left" style="vertical-align: middle;">
+              <td align="center" style="vertical-align: middle; text-align: center;">
                 <a href="https://ansaritools.com" target="_blank" style="text-decoration: none; display: inline-block;">
-                  <img src="cid:ansari-logo-black" alt="Ansari Tools" width="160" height="64" style="display: block; width: 160px; max-width: 160px; height: auto; border: 0;" />
+                  <img src="${PURPLE_LOGO_URL}" alt="Ansari Tools" width="160" height="64" style="display: block; margin: 0 auto; width: 160px; max-width: 160px; height: auto; border: 0;" />
                 </a>
               </td>
             </tr>
           </table>
 
-          <!-- Main Headline (Hostinger style) -->
+          <!-- Main Headline (Dynamic) -->
           <h1 class="heading-text" style="margin: 0 0 16px 0; font-size: 28px; line-height: 1.25; font-weight: 700; color: #111827; letter-spacing: -0.5px;">
-            Official Support Notice – you’re just a message away
+            ${cleanHeading}
           </h1>
 
           <!-- Formatted Content Message -->
@@ -503,7 +565,7 @@ const sendBroadcastEmail = async ({
 
                 <!-- Sub-note inside dark card -->
                 <div style="margin-top: 20px; font-size: 13px; line-height: 1.5; color: #b8afdc;">
-                  Please save <strong>${newWhatsAppDisplay || newWhatsApp}</strong> in your phone contacts as <strong>"Ansari Tools"</strong> for instant warranty assistance.
+                  Please save this new number on your phone contacts as <strong>"Ansari Tools"</strong> for instant support.
                 </div>
 
               </td>
@@ -541,12 +603,54 @@ const sendBroadcastEmail = async ({
             </tr>
           </table>
 
-          <!-- Subscriber Metadata pill box -->
-          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fafbfc; border-radius: 10px; border: 1px solid #f1f3f5; margin-bottom: 28px;">
+          <!-- Subscriber Subscription Details & Expiry / Renewal Card -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: ${isExpired ? '#fffbeb' : '#fafbfc'}; border-radius: 12px; border: 1px solid ${isExpired ? '#fde68a' : '#e5e7eb'}; margin-bottom: 28px; overflow: hidden;">
             <tr>
-              <td style="padding: 12px 16px; font-size: 12px; color: #6b7280;">
-                <span style="font-weight: 600; color: #374151;">Recipient:</span> ${email}
-                <span style="float: right;"><span style="font-weight: 600; color: #374151;">Plan:</span> ${duration}</span>
+              <td style="padding: 14px 18px; border-bottom: 1px solid ${isExpired ? '#fef3c7' : '#f1f3f5'};">
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td align="left" style="font-size: 13px; font-weight: 700; color: ${isExpired ? '#92400e' : '#111827'};">
+                      Canva Pro Subscription Status
+                    </td>
+                    <td align="right">
+                      ${isExpired
+                        ? `<span style="display: inline-block; background-color: #fee2e2; color: #b91c1c; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">● Expired</span>`
+                        : `<span style="display: inline-block; background-color: #dcfce7; color: #15803d; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">● Active (${daysRemaining > 0 ? daysRemaining : 0} Days Remaining)</span>`
+                      }
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 14px 18px;">
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 12px; line-height: 1.6;">
+                  <tr>
+                    <td style="color: #6b7280; padding: 3px 0;">Recipient Email:</td>
+                    <td align="right" style="font-weight: 600; color: #111827; padding: 3px 0;">${email}</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #6b7280; padding: 3px 0;">Plan Duration:</td>
+                    <td align="right" style="font-weight: 600; color: #111827; padding: 3px 0;">${actualDuration}</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #6b7280; padding: 3px 0;">${isExpired ? 'Expiry Date:' : 'Valid Until:'}</td>
+                    <td align="right" style="font-weight: 600; color: ${isExpired ? '#b91c1c' : '#111827'}; padding: 3px 0;">${formattedExpiryDate}</td>
+                  </tr>
+                </table>
+
+                ${isExpired
+                  ? `
+                  <div style="margin-top: 12px; padding: 12px 14px; background-color: #ffffff; border-radius: 8px; border: 1px dashed #f59e0b; font-size: 12px; color: #92400e; text-align: left; line-height: 1.5;">
+                    ⚠️ <strong>Renewal Notice:</strong> Aapka Canva Pro plan expire ho chuka hai. Dubara Canva Pro active karwane aur exclusive discounted renewal rate hasil karne ke liye hamare new WhatsApp <strong><a href="${whatsappUrl}" style="color: #d97706; font-weight: 700; text-decoration: underline;">${newWhatsAppDisplay || newWhatsApp}</a></strong> par contact karein.
+                  </div>
+                  `
+                  : `
+                  <div style="margin-top: 10px; font-size: 11px; color: #15803d; line-height: 1.4;">
+                    ✓ Aapka subscription plan active hai. Kisi bhi query ya warranty replacement ke liye WhatsApp par message karein.
+                  </div>
+                  `
+                }
               </td>
             </tr>
           </table>
@@ -560,7 +664,7 @@ const sendBroadcastEmail = async ({
               <td align="left">
                 <!-- Grey Logo in Footer -->
                 <div style="margin-bottom: 16px;">
-                  <img src="cid:ansari-logo-grey" alt="Ansari Tools" width="130" height="52" style="display: block; width: 130px; max-width: 130px; height: auto; border: 0;" />
+                  <img src="${GREY_LOGO_URL}" alt="Ansari Tools" width="130" height="52" style="display: block; width: 130px; max-width: 130px; height: auto; border: 0;" />
                 </div>
                 
                 <p style="margin: 0 0 14px 0; font-size: 12px; line-height: 1.6; color: #6b7280;">
@@ -614,8 +718,7 @@ const sendNotificationEmail = async (email, subject, message) => {
         address: process.env.EMAIL_USER
       },
       to: email,
-      subject: subject,
-      attachments: getLogoAttachments(),
+      subject: encodeSubjectHeader(subject),
       html: `
 <!DOCTYPE html>
 <html lang="en">
@@ -626,13 +729,13 @@ const sendNotificationEmail = async (email, subject, message) => {
   <meta name="supported-color-schemes" content="light">
   <title>${subject}</title>
 </head>
-<body style="margin: 0; padding: 24px 10px; background-color: #f4f5f8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+<body style="margin: 0; padding: 24px 10px; background-color: #ffffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
   <center>
-    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 18px; padding: 36px 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); text-align: left;">
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 18px; padding: 36px 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); text-align: left;">
       <tr>
         <td>
-          <div style="margin-bottom: 24px;">
-            <img src="cid:ansari-logo-black" alt="Ansari Tools" width="160" height="64" style="display: block; width: 160px; height: auto; border: 0;" />
+          <div style="margin-bottom: 24px; text-align: center;">
+            <img src="${PURPLE_LOGO_URL}" alt="Ansari Tools" width="160" height="64" style="display: block; margin: 0 auto; width: 160px; height: auto; border: 0;" />
           </div>
           <h2 style="font-size: 24px; font-weight: 700; color: #111827; margin: 0 0 16px 0;">${subject}</h2>
           <div style="font-size: 15px; line-height: 1.6; color: #4b5563; margin-bottom: 24px;">

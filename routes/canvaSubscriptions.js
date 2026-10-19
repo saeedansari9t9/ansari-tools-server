@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const CanvaSubscription = require('../models/CanvaSubscription');
+const BroadcastConfig = require('../models/BroadcastConfig');
 const { sendCanvaSubscriptionEmail, sendBroadcastEmail } = require('../utils/emailService');
 const websiteAdminAuth = require('../middleware/websiteAdminAuth');
 
@@ -72,17 +73,67 @@ router.get('/broadcast/list', async (req, res) => {
 // Helper sleep
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// GET broadcast configuration / draft
+router.get('/broadcast/config', async (req, res) => {
+  try {
+    let config = await BroadcastConfig.findOne({ key: 'default' });
+    if (!config) {
+      config = await BroadcastConfig.create({ key: 'default' });
+    }
+    return res.json({ success: true, config });
+  } catch (error) {
+    console.error('Error fetching broadcast config:', error);
+    return res.status(500).json({ message: 'Error fetching broadcast config', error: error.message });
+  }
+});
+
+// POST save broadcast configuration / draft
+router.post('/broadcast/config', async (req, res) => {
+  try {
+    const { heading, subject, customMessage, activeTemplate, newWhatsApp, newWhatsAppDisplay, delayMs } = req.body;
+    const updateData = {};
+    if (heading !== undefined) updateData.heading = heading;
+    if (subject !== undefined) updateData.subject = subject;
+    if (customMessage !== undefined) updateData.customMessage = customMessage;
+    if (activeTemplate !== undefined) updateData.activeTemplate = activeTemplate;
+    if (newWhatsApp !== undefined) updateData.newWhatsApp = newWhatsApp;
+    if (newWhatsAppDisplay !== undefined) updateData.newWhatsAppDisplay = newWhatsAppDisplay;
+    if (delayMs !== undefined) updateData.delayMs = delayMs;
+
+    const config = await BroadcastConfig.findOneAndUpdate(
+      { key: 'default' },
+      { $set: updateData },
+      { new: true, upsert: true }
+    );
+    return res.json({ success: true, message: 'Broadcast draft saved successfully', config });
+  } catch (error) {
+    console.error('Error saving broadcast config:', error);
+    return res.status(500).json({ message: 'Error saving broadcast config', error: error.message });
+  }
+});
+
 // POST send test broadcast email
 router.post('/broadcast/send-test', async (req, res) => {
   try {
-    const { testEmail, subject, message, newWhatsApp, newWhatsAppDisplay } = req.body;
+    const { testEmail, heading, subject, message, newWhatsApp, newWhatsAppDisplay } = req.body;
     if (!testEmail) {
       return res.status(400).json({ message: 'Test email is required' });
     }
 
+    const cleanTestEmail = testEmail.toLowerCase().trim();
+    let existingSub = null;
+    try {
+      existingSub = await CanvaSubscription.findOne({ email: cleanTestEmail }).sort({ date: -1 }).lean();
+    } catch (err) {
+      console.warn('Error fetching subscriber for test email:', err.message);
+    }
+
     const result = await sendBroadcastEmail({
-      email: testEmail.toLowerCase().trim(),
-      duration: '1 Year (Sample)',
+      email: cleanTestEmail,
+      heading: heading || 'Official Support Notice – you’re just a message away',
+      duration: existingSub?.duration || '1 Year',
+      subscriptionDate: existingSub?.date,
+      subscriptionStatus: existingSub?.status,
       subject: subject || 'Ansari Tools: Customer Support & Official WhatsApp Update',
       customMessage: message,
       newWhatsApp: newWhatsApp || '+92 322 7866655',
@@ -105,6 +156,7 @@ router.post('/broadcast/send-batch', async (req, res) => {
   try {
     const {
       subscribers = [],
+      heading,
       subject,
       message,
       newWhatsApp = '+92 322 7866655',
@@ -130,7 +182,10 @@ router.post('/broadcast/send-batch', async (req, res) => {
 
       const emailResult = await sendBroadcastEmail({
         email: sub.email.toLowerCase().trim(),
-        duration: sub.duration || 'Canva Pro',
+        duration: sub.duration || '1 Year',
+        subscriptionDate: sub.date,
+        subscriptionStatus: sub.status,
+        heading: heading || 'Official Support Notice – you’re just a message away',
         subject: subject || 'Ansari Tools: Customer Support & Official WhatsApp Update',
         customMessage: message,
         newWhatsApp,
@@ -360,3 +415,4 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
+
