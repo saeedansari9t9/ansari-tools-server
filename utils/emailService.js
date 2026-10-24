@@ -22,17 +22,21 @@ const encodeSubjectHeader = (text) => {
 };
 
 // Create transporter using SMTP (supports Namecheap Private Email and Gmail)
+let pooledTransporter = null;
 const createTransporter = () => {
+  if (pooledTransporter) return pooledTransporter;
+
   const isGmail = !process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_USER.endsWith('@gmail.com');
 
   if (isGmail) {
-    return nodemailer.createTransport({
+    pooledTransporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
       }
     });
+    return pooledTransporter;
   }
 
   // Namecheap Private Email / Custom SMTP
@@ -42,10 +46,13 @@ const createTransporter = () => {
     ? process.env.EMAIL_SECURE === 'true'
     : (port === 465);
 
-  return nodemailer.createTransport({
+  pooledTransporter = nodemailer.createTransport({
     host,
     port,
     secure,
+    pool: true,
+    maxConnections: 1,
+    maxMessages: 100,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS
@@ -54,6 +61,8 @@ const createTransporter = () => {
       rejectUnauthorized: false
     }
   });
+
+  return pooledTransporter;
 };
 
 /**

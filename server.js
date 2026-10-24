@@ -69,11 +69,22 @@ const checkDBConnection = async (req, res, next) => {
 
     if (mongoose.connection?.readyState === 1) return next();
 
+    // Gracefully poll for up to 3 seconds (15 x 200ms) if connection is in-flight
+    let attempts = 0;
+    while (mongoose.connection?.readyState !== 1 && attempts < 15) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      attempts++;
+    }
+
+    if (mongoose.connection?.readyState === 1) return next();
+
     return res.status(503).json({
       message: "Database connection not ready",
       readyState: mongoose.connection?.readyState ?? "unknown",
     });
   } catch (err) {
+    console.error('Database connection error in middleware:', err?.message || err);
+    if (mongoose.connection?.readyState === 1) return next();
     return res.status(503).json({ message: "Database unavailable" });
   }
 };
