@@ -17,4 +17,12 @@ const authWriteRateLimit = rateLimit({
   message: { message: 'Too many authentication requests. Please try again later.' },
 });
 
-module.exports = { authWriteRateLimit, loginRateLimit };
+const forgotPasswordRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { message: 'Too many password reset requests. Please try again after 15 minutes.' },
+});
+
+module.exports = { authWriteRateLimit, forgotPasswordRateLimit, loginRateLimit };

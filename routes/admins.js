@@ -2,11 +2,19 @@ const express = require('express');
 const Admin = require('../models/Admin');
 const websiteAdminAuth = require('../middleware/websiteAdminAuth');
 const websiteOwnerAuth = require('../middleware/websiteOwnerAuth');
-const { authWriteRateLimit, loginRateLimit } = require('../middleware/rateLimits');
+const {
+  authWriteRateLimit,
+  forgotPasswordRateLimit,
+  loginRateLimit,
+} = require('../middleware/rateLimits');
+const { sendAdminPasswordResetEmail } = require('../utils/emailService');
 const {
   adminCookieOptions,
   clearAdminCookieOptions,
+  createPasswordResetToken,
+  hashPasswordResetToken,
   legacyAdminCookieOptions,
+  resolveTrustedFrontendOrigin,
   signAdminToken,
   validateStrongPassword,
 } = require('../utils/security');
@@ -79,6 +87,122 @@ router.post('/login', loginRateLimit, async (req, res) => {
   } catch (error) {
     console.error('Admin login failed');
     return res.status(500).json({ message: 'Server error during login' });
+  }
+});
+
+const RESET_LINK_INVALID_MESSAGE = 'This password reset link is invalid or has expired. Please request a new one.';
+
+async function findAdminByResetToken(rawToken, extraSelect = '') {
+  const tokenHash = hashPasswordResetToken(rawToken);
+  if (!tokenHash) return null;
+
+  const selectFields = ['+resetPasswordTokenHash', '+resetPasswordExpiresAt', extraSelect]
+    .filter(Boolean)
+    .join(' ');
+
+  return Admin.findOne({
+    resetPasswordTokenHash: tokenHash,
+    resetPasswordExpiresAt: { $gt: new Date() },
+    isActive: true,
+  }).select(selectFields);
+}
+
+router.post('/forgot-password', forgotPasswordRateLimit, async (req, res) => {
+  try {
+    const email = typeof req.body.email === 'string' ? req.body.email.toLowerCase().trim() : '';
+    if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ message: 'Please enter a valid email address' });
+    }
+
+    const genericSuccessMessage = 'If an active admin account exists for this email, a password reset link has been sent.';
+    const admin = await Admin.findOne({ email }).select('+resetPasswordTokenHash +resetPasswordExpiresAt');
+
+    if (!admin || !admin.isActive) {
+      return res.json({ message: genericSuccessMessage });
+    }
+
+    const { rawToken, tokenHash, expiresAt } = createPasswordResetToken();
+    admin.resetPasswordTokenHash = tokenHash;
+    admin.resetPasswordExpiresAt = expiresAt;
+    await admin.save();
+
+    const frontendOrigin = resolveTrustedFrontendOrigin(req);
+    const resetUrl = `${frontendOrigin}/admin/reset-password?token=${rawToken}`;
+    const emailResult = await sendAdminPasswordResetEmail({
+      email: admin.email,
+      firstName: admin.firstName,
+      resetUrl,
+      expiresInMinutes: 15,
+    });
+
+    if (!emailResult.success) {
+      admin.resetPasswordTokenHash = null;
+      admin.resetPasswordExpiresAt = null;
+      await admin.save().catch(() => {});
+      return res.status(500).json({
+        message: 'Unable to send reset email right now. Please try again shortly.',
+      });
+    }
+
+    return res.json({ message: genericSuccessMessage });
+  } catch (error) {
+    console.error('Forgot password request failed');
+    return res.status(500).json({ message: 'Server error while processing reset request' });
+  }
+});
+
+router.post('/reset-password/verify', authWriteRateLimit, async (req, res) => {
+  try {
+    const token = typeof req.body.token === 'string' ? req.body.token.trim() : '';
+    const admin = await findAdminByResetToken(token);
+    if (!admin) {
+      return res.status(400).json({ valid: false, message: RESET_LINK_INVALID_MESSAGE });
+    }
+    return res.json({ valid: true });
+  } catch (error) {
+    return res.status(500).json({ valid: false, message: 'Unable to verify reset link' });
+  }
+});
+
+router.post('/reset-password', authWriteRateLimit, async (req, res) => {
+  try {
+    const token = typeof req.body.token === 'string' ? req.body.token.trim() : '';
+    const newPassword = typeof req.body.newPassword === 'string' ? req.body.newPassword : '';
+
+    if (!token) {
+      return res.status(400).json({ message: RESET_LINK_INVALID_MESSAGE });
+    }
+
+    const passwordError = validateStrongPassword(newPassword);
+    if (passwordError) {
+      return res.status(400).json({ message: passwordError });
+    }
+
+    const admin = await findAdminByResetToken(
+      token,
+      '+password +tokenVersion +failedLoginAttempts +lockUntil'
+    );
+
+    if (!admin) {
+      return res.status(400).json({ message: RESET_LINK_INVALID_MESSAGE });
+    }
+
+    admin.password = newPassword;
+    admin.resetPasswordTokenHash = null;
+    admin.resetPasswordExpiresAt = null;
+    admin.failedLoginAttempts = 0;
+    admin.lockUntil = null;
+    await admin.save();
+
+    res.clearCookie('admin_token', clearAdminCookieOptions());
+    res.clearCookie('admin_token', legacyAdminCookieOptions());
+
+    return res.json({
+      message: 'Password updated successfully. You can now sign in with your new password.',
+    });
+  } catch (error) {
+    console.error('Reset password failed');
+    return res.status(500).json({ message: 'Server error while resetting password' });
   }
 });
 

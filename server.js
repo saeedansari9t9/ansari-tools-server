@@ -15,7 +15,7 @@ const salesRoutes = require("./routes/sales");
 const expensesRoutes = require("./routes/expenses");
 const adminTools = require("./routes/adminTools");
 const { connectDB } = require("./src/db");
-const { validateRuntimeSecrets } = require('./utils/security');
+const { getAllowedOrigins, validateRuntimeSecrets } = require('./utils/security');
 
 const app = express();
 app.disable('x-powered-by');
@@ -30,21 +30,7 @@ app.use(cookieParser());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ✅ CORS (ONLY ONCE & BEFORE ROUTES)
-const allowedOrigins = new Set([
-  'https://ansaritools.com',
-  'https://www.ansaritools.com',
-  'https://dash.ansaritools.com',
-  ...(process.env.ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean),
-]);
-
-if (process.env.NODE_ENV !== 'production') {
-  allowedOrigins.add('http://localhost:3000');
-  allowedOrigins.add('http://localhost:5173');
-  allowedOrigins.add('http://localhost:5174');
-  allowedOrigins.add('http://127.0.0.1:3000');
-  allowedOrigins.add('http://127.0.0.1:5173');
-  allowedOrigins.add('http://127.0.0.1:5174');
-}
+const allowedOrigins = getAllowedOrigins();
 
 app.use(cors({
   origin(origin, callback) {

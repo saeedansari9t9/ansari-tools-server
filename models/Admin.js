@@ -41,6 +41,16 @@ const adminSchema = new mongoose.Schema({
     default: null,
     select: false
   },
+  resetPasswordTokenHash: {
+    type: String,
+    default: null,
+    select: false
+  },
+  resetPasswordExpiresAt: {
+    type: Date,
+    default: null,
+    select: false
+  },
   isAdmin: {
     type: Boolean,
     default: true
@@ -91,6 +101,8 @@ adminSchema.set('toJSON', {
   virtuals: true,
   transform: function(doc, ret) {
     delete ret.password;
+    delete ret.resetPasswordTokenHash;
+    delete ret.resetPasswordExpiresAt;
     return ret;
   }
 });

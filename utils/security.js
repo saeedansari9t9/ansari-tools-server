@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { getEncryptionKey } = require('./fieldEncryption');
 
@@ -5,6 +6,7 @@ const TOKEN_ISSUER = 'ansari-tools-api';
 const ADMIN_TOKEN_AUDIENCE = 'ansari-tools-website-admin';
 const USER_TOKEN_AUDIENCE = 'ansari-tools-dashboard';
 const ADMIN_SESSION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const PASSWORD_RESET_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
@@ -98,6 +100,71 @@ function legacyAdminCookieOptions() {
   };
 }
 
+function hashPasswordResetToken(rawToken) {
+  if (typeof rawToken !== 'string') return null;
+  const trimmed = rawToken.trim();
+  if (!/^[a-f0-9]{64}$/i.test(trimmed)) return null;
+  return crypto.createHash('sha256').update(trimmed).digest('hex');
+}
+
+function createPasswordResetToken() {
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashPasswordResetToken(rawToken);
+  const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
+  return { rawToken, tokenHash, expiresAt };
+}
+
+function getAllowedOrigins() {
+  const allowedOrigins = new Set([
+    'https://ansaritools.com',
+    'https://www.ansaritools.com',
+    'https://dash.ansaritools.com',
+    ...(process.env.ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean),
+  ]);
+
+  if (process.env.NODE_ENV !== 'production') {
+    allowedOrigins.add('http://localhost:3000');
+    allowedOrigins.add('http://localhost:5173');
+    allowedOrigins.add('http://localhost:5174');
+    allowedOrigins.add('http://127.0.0.1:3000');
+    allowedOrigins.add('http://127.0.0.1:5173');
+    allowedOrigins.add('http://127.0.0.1:5174');
+  }
+
+  return allowedOrigins;
+}
+
+function resolveTrustedFrontendOrigin(req) {
+  const configured = (process.env.FRONTEND_URL || process.env.ADMIN_APP_URL || '').trim();
+  if (configured) {
+    try {
+      const parsed = new URL(configured);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        return parsed.origin;
+      }
+    } catch {
+      // ignore invalid configured URL and fall back to trusted origins
+    }
+  }
+
+  const allowedOrigins = getAllowedOrigins();
+  const candidates = [req?.get?.('origin'), req?.get?.('referer')].filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      const origin = new URL(candidate).origin;
+      if (allowedOrigins.has(origin)) {
+        return origin;
+      }
+    } catch {
+      // ignore malformed headers
+    }
+  }
+
+  return process.env.NODE_ENV === 'production'
+    ? 'https://ansaritools.com'
+    : 'http://localhost:3000';
+}
+
 function validateStrongPassword(password) {
   if (typeof password !== 'string' || password.length < 12 || password.length > 128) {
     return 'Password must be between 12 and 128 characters';
@@ -119,7 +186,11 @@ function validateRuntimeSecrets() {
 module.exports = {
   adminCookieOptions,
   clearAdminCookieOptions,
+  createPasswordResetToken,
+  getAllowedOrigins,
+  hashPasswordResetToken,
   legacyAdminCookieOptions,
+  resolveTrustedFrontendOrigin,
   signAdminToken,
   signUserToken,
   validateRuntimeSecrets,

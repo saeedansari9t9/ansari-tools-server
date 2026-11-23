@@ -770,8 +770,121 @@ const sendNotificationEmail = async (email, subject, message) => {
   }
 };
 
+const escapeHtml = (value = '') => String(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 /**
- * 4. Verify SMTP connection
+ * 4. Send Admin Password Reset email (Hostinger-inspired branded template)
+ */
+const sendAdminPasswordResetEmail = async ({
+  email,
+  firstName = '',
+  resetUrl,
+  expiresInMinutes = 15
+}) => {
+  try {
+    const transporter = createTransporter();
+    const displayName = escapeHtml((firstName || '').trim() || 'Administrator');
+    const safeResetUrl = escapeHtml(resetUrl);
+    const subject = 'Reset Your Ansari Tools Admin Password';
+
+    const mailOptions = {
+      from: {
+        name: 'Ansari Tools Security',
+        address: process.env.EMAIL_USER
+      },
+      to: email,
+      subject: encodeSubjectHeader(subject),
+      headers: {
+        'X-Priority': '1',
+        'X-MSMail-Priority': 'High',
+        'Importance': 'high',
+        'X-Mailer': 'Ansari Tools Security Service'
+      },
+      html: `
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>${subject}</title>
+</head>
+<body style="margin: 0; padding: 24px 12px; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <center>
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06); text-align: left;">
+      <tr>
+        <td style="padding: 36px 32px 16px 32px; text-align: center;">
+          <img src="${PURPLE_LOGO_URL}" alt="Ansari Tools" width="150" height="60" style="display: block; margin: 0 auto; width: 150px; max-width: 150px; height: auto; border: 0;" />
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 8px 32px 32px 32px;">
+          <div style="display: inline-block; background-color: #f3e8ff; color: #5b21b6; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 12px; border-radius: 999px; margin-bottom: 16px;">
+            Admin Portal Security
+          </div>
+          <h1 style="margin: 0 0 14px 0; font-size: 24px; line-height: 1.3; font-weight: 800; color: #0f172a;">
+            Reset Your Admin Password
+          </h1>
+          <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #475569;">
+            Hello <strong>${displayName}</strong>,
+          </p>
+          <p style="margin: 0 0 24px 0; font-size: 15px; line-height: 1.6; color: #475569;">
+            We received a request to reset the password for your Ansari Tools Admin Portal account (<strong>${escapeHtml(email)}</strong>). Click the button below to choose a new password.
+          </p>
+
+          <!-- Signature Midnight Purple CTA Card -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1F1739; border-radius: 16px; margin-bottom: 24px;">
+            <tr>
+              <td style="padding: 26px 24px; text-align: center;">
+                <p style="margin: 0 0 16px 0; font-size: 13px; color: #d1c7f7;">
+                  This secure reset link will expire in <strong style="color: #ffffff;">${expiresInMinutes} minutes</strong> and can only be used once.
+                </p>
+                <a href="${safeResetUrl}" target="_blank" style="display: inline-block; background-color: #6C5CE7; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 12px;">
+                  Reset Password
+                </a>
+              </td>
+            </tr>
+          </table>
+
+          <p style="margin: 0 0 24px 0; font-size: 13px; line-height: 1.6; color: #64748b;">
+            If you did not request a password reset, you can safely ignore this email. Your existing password remains secure and unchanged.
+          </p>
+
+          <div style="border-top: 1px solid #e2e8f0; padding-top: 20px;">
+            <img src="${GREY_LOGO_URL}" alt="Ansari Tools" width="120" height="48" style="display: block; width: 120px; height: auto; border: 0; margin-bottom: 10px; opacity: 0.85;" />
+            <p style="margin: 0 0 4px 0; font-size: 12px; color: #64748b;">
+              Ansari Tools Admin Security Notification &bull; Support: support@ansaritools.com
+            </p>
+            <p style="margin: 0; font-size: 11px; color: #94a3b8;">
+              &copy; 2024-${new Date().getFullYear()} Ansari Tools International. All rights reserved.
+            </p>
+          </div>
+        </td>
+      </tr>
+    </table>
+  </center>
+</body>
+</html>
+      `
+    };
+
+    const result = await transporter.sendMail(mailOptions);
+    console.log('✅ Admin password reset email sent to', email, 'MessageId:', result.messageId);
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error('❌ Error sending admin password reset email:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * 5. Verify SMTP connection
  */
 const verifyEmailConnection = async () => {
   try {
@@ -788,5 +901,6 @@ module.exports = {
   sendCanvaSubscriptionEmail,
   sendNotificationEmail,
   sendBroadcastEmail,
+  sendAdminPasswordResetEmail,
   verifyEmailConnection
 };
